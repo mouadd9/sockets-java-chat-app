@@ -1,0 +1,20 @@
+[
+    {
+        "email": "user1@gmail.com",
+        "password": "password123",
+        "isOnline": false,
+        "contactEmails": ["user2@gmail.com", "user3@gmail.com"]
+    },
+    {
+        "email": "user2@gmail.com",
+        "password": "password456",
+        "isOnline": true,
+        "contactEmails": ["user1@gmail.com"]
+    },
+    {
+        "email": "user3@gmail.com",
+        "password": "password789",
+        "isOnline": false,
+        "contactEmails": ["user1@gmail.com"]
+    }
+]

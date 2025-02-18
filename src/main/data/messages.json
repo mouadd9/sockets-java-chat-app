@@ -1,0 +1,26 @@
+[
+    {
+        "id": "msg1",
+        "senderEmail": "user1@gmail.com",
+        "receiverEmail": "user2@gmail.com",
+        "content": "Hello user2! How are you?",
+        "timestamp": "2024-02-18T19:58:51",
+        "isRead": true
+    },
+    {
+        "id": "msg2",
+        "senderEmail": "user2@gmail.com",
+        "receiverEmail": "user1@gmail.com",
+        "content": "Hi user1! I'm good, thanks!",
+        "timestamp": "2024-02-18T19:59:00",
+        "isRead": true
+    },
+    {
+        "id": "msg3",
+        "senderEmail": "user3@gmail.com",
+        "receiverEmail": "user1@gmail.com",
+        "content": "Hey user1, can we meet tomorrow?",
+        "timestamp": "2024-02-18T20:00:00",
+        "isRead": false
+    }
+]
