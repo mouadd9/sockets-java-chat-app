@@ -16,14 +16,16 @@ public class MessageService {
         this.userRepository = new JsonUserRepository();
     }
 
+    // this 
     public boolean sendMessage(String senderEmail, String receiverEmail, String content) throws IOException {
-        // Validate that both users exist
+        // if sender email or receiver email do not exist then we return false
         if (userRepository.findByEmail(senderEmail).isEmpty() || 
             userRepository.findByEmail(receiverEmail).isEmpty()) {
             return false;
         }
-
+        // if both exist we create a new message entity
         Message message = new Message(senderEmail, receiverEmail, content);
+        // then we save it
         messageRepository.saveMessage(message);
         return true;
     }

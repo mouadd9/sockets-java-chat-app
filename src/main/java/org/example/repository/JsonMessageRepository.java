@@ -11,32 +11,51 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+// this class will provide methods that will do the following : 
+  // - a method to save a list of messages objects to a json file (messages.json), by writing to the json file
+  // - a method to load all messages from the JSON file (messages.json) and return them as a list of messages objects 
 public class JsonMessageRepository {
+    // location of the messages.json
     private static final String MESSAGES_FILE = "data/messages.json";
     private final ObjectMapper objectMapper;
     private final File messagesFile;
 
+    // constructor that creates an instance of ObjectMapper()
     public JsonMessageRepository() {
+        // object Mapper is a class provided by the jackson library it serializes and deserialzes JSON strings;
         this.objectMapper = new ObjectMapper();
         // Register JavaTimeModule to handle LocalDateTime serialization
         this.objectMapper.registerModule(new JavaTimeModule());
+        // this provides the path for the messages.json file
         this.messagesFile = new File(MESSAGES_FILE);
     }
-
+    // this method uses a jackson method used to serialize any Java value as JSON output, written to File provided.
     public void saveMessages(List<Message> messages) throws IOException {
+        // inputs : a list of messages , a file path 
+        // effect : serialization and persistance into the provided file path
         objectMapper.writeValue(messagesFile, messages);
     }
-
+    // this method will retrieve data from the JSON file and return a list of messages 
+    // the issue here is, jackson do not know to what type of objects the list will have
     public List<Message> loadMessages() throws IOException {
         if (!messagesFile.exists()) {
             throw new IOException("messages.json file not found in data directory");
         }
+        // this is the key line 
+        // here we tell jackson that we need an ArrayList containing Message objects !!!!!!!
+        // we are telling jackson that the json file is an array (ArrayList) and this array will have objects of type (Message)
         CollectionType listType = objectMapper.getTypeFactory()
             .constructCollectionType(ArrayList.class, Message.class);
-        return objectMapper.readValue(messagesFile, listType);
+        // this readVale() method needs two informations to function , first the path of the JSON file then an information regarding the types 
+        // that jackson should use to desirialize
+        // its like we are telling jackson to Take this JSON array (messagesFile) and create an ArrayList of Message objects from it.
+        ArrayList<Message> messages = objectMapper.readValue(messagesFile, listType);
+        // then we return the messages array
+        return messages ;
     }
 
     public void saveMessage(Message message) throws IOException {
+        // we will fi
         List<Message> messages = loadMessages();
         messages.add(message);
         saveMessages(messages);

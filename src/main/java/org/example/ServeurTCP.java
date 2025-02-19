@@ -3,36 +3,60 @@ package org.example;
 import java.io.*;
 import java.net.*;
 
-public class ServeurTCP {
-    // Définition du port sur lequel le serveur va écouter
-    private static final int PORT = 5000;
+/*
+ Prerequisits: 
+  - What is a Port ? 
+  a port is a numbered entry point to your computer, each port can be used to access your machine
+  - What is a Socket and a ServerSocket ?
+  a socket is an endpoint for sending and receiving data across the network.
+  a socket is created only during the lifetime of a process of an application.
+  the process uses an API to create a handle for each socket created.
+  when created with the API a socket is bound to the combination of a type of network protocol (TCP/IP by default) and a port number.
 
-    // Liste pour garder trace des clients connectés (optionnel)
+ How does the communication happen ? 
+ an application can communicate with a remote process by exchanging data with TCP/IP 
+ by knowing the combination of protocol type, IP address, and port number.
+ this conbination is often known as a socket address. 
+
+ ServerSocket:
+- Only listens for connections
+- Can't send/receive data
+- Creates new Sockets for communication
+
+Socket:
+- Actually handles the data transfer
+- Can both send and receive
+- One Socket per connection
+
+  The server creates a socket Socket(), attaches it to a network port addresse Bind()
+  then waits for the client to contact it Listen().
+
+
+*/
+
+public class ServeurTCP {
+    private static final int PORT = 5000; // the port where the server will run the socket
     private static int clientID = 0;
 
-    public static void main(String[] args) {
-        try {
-            // Créer un serveur qui écoute sur le port spécifié
-            ServerSocket serveur = new ServerSocket(PORT);
-            System.out.println("Serveur démarré sur le port " + PORT);
-            System.out.println("En attente de connexions des clients...");
+    public static void main(String[] args) throws Exception {
 
-            // Boucle infinie pour accepter plusieurs clients
-            while (true) {
-                // Attendre qu'un client se connecte
-                Socket client = serveur.accept();
-                clientID++;
+        // this is the Socket created by the server and bound to port
+        ServerSocket serverSocket = new ServerSocket(PORT);
+        System.out.println("Server Socket created and attached to port" + PORT);
+        System.out.println("Waiting for clients to contact the Socket...");
 
-                // Afficher les informations de connexion
-                System.out.println("Nouveau client #" + clientID + " connecté!");
+        // Boucle infinie pour accepter plusieurs clients
+        while (true) {
+            // Attendre qu'un client se connecte
+            Socket client = serverSocket.accept();
+            clientID++;
 
-                // Créer un nouveau thread pour gérer ce client
-                Thread threadClient = new Thread(() -> gererClient(client));
-                threadClient.start();
-            }
+            // Afficher les informations de connexion
+            System.out.println("Nouveau client #" + clientID + " connecté!");
 
-        } catch (IOException e) {
-            System.out.println("Erreur lors du démarrage du serveur: " + e.getMessage());
+            // Créer un nouveau thread pour gérer ce client
+            Thread threadClient = new Thread(() -> gererClient(client));
+            threadClient.start();
         }
     }
 
@@ -46,8 +70,7 @@ public class ServeurTCP {
             // Message de bienvenue
             envoyeur.println("Bienvenue! Vous êtes le client #" + clientID);
 
-
-            // //  
+            // //
 
             String message;
             // Boucle pour lire les messages du client

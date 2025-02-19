@@ -48,9 +48,16 @@ public class JsonUserRepository {
     // this method calls loadUsers() and then uses streams to filter out only the users with a certain email
     // it returns an optional that can have a user or cannot have anything 
     public Optional<Utilisateur> findByEmail(String email) throws IOException {
-        return loadUsers().stream()  
-            .filter(user -> user.getEmail().equals(email))
-            .findFirst();
+        return loadUsers() // get list of users ArrayList<Users>
+            .stream()  // convert to stream
+            .filter(user -> user.getEmail().equals(email)) // filter users
+            .findFirst(); // triggers the execution and returns an Optional with the first user to pass the filter
+            // findFirst returns an Optional of type User
+                // - this Optional can either be empty if the stream doesn return anything 
+                // - or can contain a user
+
+                // - if the Optional is not empty, optn.isPresent() will return true and optn.get() will return the value stored
+                // - if its empty optn.isPresent() will return false 
     }
 
     public void saveUser(Utilisateur user) throws IOException {
