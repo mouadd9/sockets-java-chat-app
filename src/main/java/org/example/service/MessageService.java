@@ -16,25 +16,26 @@ public class MessageService {
         this.userRepository = new JsonUserRepository();
     }
 
-    // this 
-    public boolean sendMessage(String senderEmail, String receiverEmail, String content) throws IOException {
+    // this method will send create a new entry in the message.json with the new message
+    public boolean sendMessage(Message message) throws IOException {
         // if sender email or receiver email do not exist then we return false
-        if (userRepository.findByEmail(senderEmail).isEmpty() || 
-            userRepository.findByEmail(receiverEmail).isEmpty()) {
+        if (userRepository.findByEmail(message.getSenderEmail()).isEmpty() || 
+            userRepository.findByEmail(message.getReceiverEmail()).isEmpty()) {
             return false;
         }
-        // if both exist we create a new message entity
-        Message message = new Message(senderEmail, receiverEmail, content);
         // then we save it
+        System.out.println("this is the object we created in the client side and sent here : " + message.getContent() + " sender : " + message.getSenderEmail());
         messageRepository.saveMessage(message);
         return true;
     }
 
-    public List<Message> getUnreadMessages(String userEmail) throws IOException {
-        return messageRepository.getUnreadMessagesForUser(userEmail);
-    }
+    
 
+    public List<Message> getUnreadMessages(String userEmail) throws IOException {
+        return messageRepository.getUnreadMessages(userEmail);
+    }
+/*
     public void markMessageAsRead(String messageId) throws IOException {
         messageRepository.markMessageAsRead(messageId);
-    }
+    }*/
 }

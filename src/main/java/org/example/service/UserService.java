@@ -25,21 +25,19 @@ public class UserService {
         return true;
     }
 
-    public Optional<Utilisateur> authenticateUser(String email, String password) throws IOException {
+    public boolean authenticateUser(String email, String password) throws IOException {
         Optional<Utilisateur> userOpt = userRepository.findByEmail(email);
         if (userOpt.isPresent() && userOpt.get().getPassword().equals(password)) {
-            Utilisateur user = userOpt.get();
-            user.setOnline(true);
-            userRepository.saveUser(user);
-            return Optional.of(user);
+            userRepository.updateUserStatus(userOpt.get().getEmail(), true);
+            return true;
         }
-        return Optional.empty();
+         return false;
     }
 
     public void setUserOnlineStatus(String email, boolean isOnline) throws IOException {
         userRepository.updateUserStatus(email, isOnline);
     }
-
+/*
     public boolean addContact(String userEmail, String contactEmail) throws IOException {
         Optional<Utilisateur> userOpt = userRepository.findByEmail(userEmail);
         Optional<Utilisateur> contactOpt = userRepository.findByEmail(contactEmail);
@@ -51,5 +49,5 @@ public class UserService {
             return true;
         }
         return false;
-    }
+    } */
 }
