@@ -9,6 +9,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 // this class will provide methods that will do the following : 
@@ -16,7 +17,7 @@ import java.util.stream.Collectors;
   // - a method to load all messages from the JSON file (messages.json) and return them as a list of messages objects 
 public class JsonMessageRepository {
     // location of the messages.json
-    private static final String MESSAGES_FILE = "data/messages.json";
+    private static final String MESSAGES_FILE = "src/main/data/messages.json";
     private final ObjectMapper objectMapper;
     private final File messagesFile;
 
@@ -55,9 +56,13 @@ public class JsonMessageRepository {
     }
 
     public void saveMessage(Message message) throws IOException {
-        // we will fi
+        // we will first load all messages from the messages.json using the Jackson desirializer
         List<Message> messages = loadMessages();
+        // then we will add the new message at the end of the list
         messages.add(message);
+        System.out.println("saving message: " );
+
+        // then we serialize and save the new array of messages
         saveMessages(messages);
         System.out.println("Message saved: " + message.getContent());
     }
@@ -70,25 +75,38 @@ public class JsonMessageRepository {
             .collect(Collectors.toList());
     }
 
-    // Get only unread messages for a user
-    public List<Message> getUnreadMessagesForUser(String userEmail) throws IOException {
-        return loadMessages().stream()
-            .filter(m -> m.getReceiverEmail().equals(userEmail) && !m.isRead())
-            .collect(Collectors.toList());
+    // Get only messages sent from the user we pass in argument
+     public List<Message> getSentMessages(String userEmail) throws IOException {
+        return loadMessages()
+             .stream() // here we turn this into a stream
+             .filter(m -> m.getSenderEmail().equals(userEmail))
+             .collect(Collectors.toList()); // this will gather all sent messages and put them into a List
     }
 
+    // this will get only messages received by a user passed in
+    public List<Message> getReceivedMessages(String userEmail) throws IOException {
+        return loadMessages()
+               .stream()
+               .filter(m -> m.getReceiverEmail().equals(userEmail))
+               .collect(Collectors.toList()); // here we tranform a stream back into a usable list
+    }
+    // Get only unread messages for a user
+    public List<Message> getUnreadMessages(String userEmail) throws IOException {
+        return loadMessages()
+            .stream()
+            .filter(m -> m.getReceiverEmail().equals(userEmail) && !m.isRead())
+            .collect(Collectors.toList()); // this will gather all received and unread messages
+    }
+/*
     // Mark a message as read
     public void markMessageAsRead(String messageId) throws IOException {
         List<Message> messages = loadMessages();
         messages.stream()
             .filter(m -> m.getId().equals(messageId))
-            .findFirst()
-            .ifPresent(m -> {
-                m.setRead(true);
-                System.out.println("Message " + messageId + " marked as read");
-            });
+            .map(m -> m.setRead(true))
+            .findFirst(); // to trigger the execution
         saveMessages(messages);
-    }
+    }*/
 
     // Get conversation between two users
     public List<Message> getConversation(String user1Email, String user2Email) throws IOException {

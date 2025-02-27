@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 public class JsonUserRepository {
-    private static final String USERS_FILE = "data/utilisateurs.json";
+    private static final String USERS_FILE = "src/main/data/utilisateurs.json";
     private final ObjectMapper objectMapper;
     private final File usersFile;
 
@@ -56,8 +56,12 @@ public class JsonUserRepository {
                 // - or can contain a user
 
                 // - if the Optional is not empty, optn.isPresent() will return true and optn.get() will return the value stored
-                // - if its empty optn.isPresent() will return false 
+                // - if its empty optn.isPresent() will return false
+        // - opts.empty() true
+        // opts.ifPresent(u -> u.setStatus(true))
     }
+
+
 
     public void saveUser(Utilisateur user) throws IOException {
         List<Utilisateur> users = loadUsers();
@@ -76,11 +80,5 @@ public class JsonUserRepository {
                 System.out.println("User " + email + " status updated to: " + isOnline);
             });
         saveUsers(users);
-    }
-
-    // Add a method to verify if a user exists and password matches
-    public boolean verifyUser(String email, String password) throws IOException {
-        Optional<Utilisateur> user = findByEmail(email);
-        return user.isPresent() && user.get().getPassword().equals(password);
     }
 }
