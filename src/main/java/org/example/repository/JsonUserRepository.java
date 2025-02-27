@@ -36,7 +36,6 @@ public class JsonUserRepository {
         if (!usersFile.exists()) {
             throw new IOException("utilisateurs.json file not found in data directory");
         }
-        // !!!!!!!!!!!!!!!!!!!!!!!!!
         // here we Create a type definition for List<Utilisateur>
         CollectionType listType = objectMapper.getTypeFactory()
             .constructCollectionType(ArrayList.class, Utilisateur.class);
