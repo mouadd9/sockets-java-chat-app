@@ -25,16 +25,16 @@ public class ClientHandler implements Runnable {
     private final UserService userService;
     private final MessageBroker messageBroker;
     private boolean isRunning = true;
-    
+
     // Map to store all online clients (shared between all handlers)
     private static Map<String, ClientHandler> onlineClients = new ConcurrentHashMap<>();
-    
+
     public ClientHandler(final Socket socket) {
         this.clientSocket = socket;
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         this.userService = new UserService();
         this.messageBroker = MessageBroker.getInstance();
-        
+
         try {
             this.out = new PrintWriter(socket.getOutputStream(), true);
             this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -49,15 +49,15 @@ public class ClientHandler implements Runnable {
             // Step 1: Handle Authentication
             final String jsonCredentials = in.readLine();
             final Credentials credentials = objectMapper.readValue(jsonCredentials, Credentials.class);
-            
+
             if (userService.authenticateUser(credentials.getEmail(), credentials.getPassword())) {
                 // Authentication successful
                 setClientEmail(credentials.getEmail());
                 out.println("AUTH_SUCCESS");
-                
+
                 // Enregistrer ce client comme consommateur de messages
                 registerAsConsumer();
-                
+
                 // Start handling messages
                 handleMessages();
             } else {
@@ -90,7 +90,7 @@ public class ClientHandler implements Runnable {
             while (isRunning && (messageData = in.readLine()) != null) {
                 try {
                     final Message message = objectMapper.readValue(messageData, Message.class);
-                    
+
                     switch (message.getType()) {
                         case "CHAT":
                             handleChatMessage(message);
@@ -119,19 +119,19 @@ public class ClientHandler implements Runnable {
     private void handleChatMessage(final Message message) throws IOException {
         // Check if receiver is online
         final ClientHandler receiverHandler = onlineClients.get(message.getReceiverEmail());
-        
+
         // Utiliser le broker pour envoyer le message
-        final boolean delivered = messageBroker.sendMessage(message, 
-            receiverHandler != null ? msg -> {
-                try {
-                    final String jsonMessage = objectMapper.writeValueAsString(msg);
-                    receiverHandler.sendMessage(jsonMessage);
-                } catch (final IOException e) {
-                    System.err.println("Erreur lors de l'envoi direct du message: " + e.getMessage());
-                    throw new RuntimeException("Échec d'envoi du message", e);
-                }
-            } : null);
-        
+        final boolean delivered = messageBroker.sendMessage(message,
+                receiverHandler != null ? msg -> {
+                    try {
+                        final String jsonMessage = objectMapper.writeValueAsString(msg);
+                        receiverHandler.sendMessage(jsonMessage);
+                    } catch (final IOException e) {
+                        System.err.println("Erreur lors de l'envoi direct du message: " + e.getMessage());
+                        throw new RuntimeException("Échec d'envoi du message", e);
+                    }
+                } : null);
+
         // Envoyer une confirmation à l'expéditeur
         final Message confirmation = new Message(null, message.getSenderEmail(), null);
         confirmation.setType("CONFIRMATION");
@@ -139,7 +139,7 @@ public class ClientHandler implements Runnable {
         confirmation.setId(message.getId());
         sendMessage(objectMapper.writeValueAsString(confirmation));
     }
-    
+
     private void handleAcknowledge(final Message message) {
         // Le client confirme la réception d'un message
         if (message.getId() != null) {
@@ -149,31 +149,32 @@ public class ClientHandler implements Runnable {
 
     private void handleLogout() {
         try {
-            userService.setUserOnlineStatus(clientEmail, false);
+            // Envoyer la confirmation de déconnexion
             sendMessage("{\"type\":\"LOGOUT_CONFIRM\"}");
-            isRunning = false;
-            clientSocket.close();
-        } catch (final IOException e) {
-            System.out.println("Error during logout: " + e.getMessage());
+        } catch (final Exception e) {
+            System.out.println("Erreur lors de l'envoi du LOGOUT_CONFIRM: " + e.getMessage());
+        } finally {
+            // Assurer la déconnexion proprement
+            handleDisconnection();
         }
     }
 
     private void handleDisconnection() {
         try {
             if (clientEmail != null) {
-                // Désenregistrer ce client comme consommateur de messages
+                // Désenregistrer ce client comme consommateur de messages et mettre à jour son
+                // statut
                 messageBroker.unregisterConsumer(clientEmail);
-                
                 userService.setUserOnlineStatus(clientEmail, false);
                 onlineClients.remove(clientEmail);
-                System.out.println("Client disconnected and removed: " + clientEmail);
+                System.out.println("Client déconnecté et retiré: " + clientEmail);
             }
             isRunning = false;
-            if (!clientSocket.isClosed()) {
+            if (clientSocket != null && !clientSocket.isClosed()) {
                 clientSocket.close();
             }
         } catch (final IOException e) {
-            System.out.println("Error during disconnection: " + e.getMessage());
+            System.out.println("Erreur lors de la déconnexion: " + e.getMessage());
         }
     }
 
@@ -194,78 +195,78 @@ public class ClientHandler implements Runnable {
 }
 
 /*
-ClientHandler Flow Schema:
-
-1. Client Connection:
-   Client Socket ----connects----> Server Socket
-                                      │
-                                      ▼
-                                 Create ClientHandler
-                                      │
-                                      ▼
-                                 Start Thread
-
-2. Authentication Flow:
-   Client ----sends credentials----> ClientHandler
-                                      │
-                                      ▼
-                                 Validate User
-                                      │
-                           ┌─────────┴──────────┐
-                           ▼                     ▼
-                     AUTH_SUCCESS           AUTH_FAILED
-                           │                     │
-                           ▼                     ▼
-                    Add to onlineClients    Close Connection
-                           │
-                           ▼
-                    Send Offline Messages
-
-3. Message Handling Flow:
-   a) Sending Message:
-      Client A ----sends message----> ClientHandler A
-                                          │
-                                     Save to DB
-                                          │
-                                    Check Receiver
-                                          │
-                            ┌─────────────┴────────────┐
-                            ▼                          ▼
-                     Receiver Online             Receiver Offline
-                            │                          │
-                    Forward Message              Queue Message
-                            │                          │
-                    Send "delivered"            Send "queued"
-                    to sender                   to sender
-
-   b) Receiving Message:
-      ClientHandler A ----forwards----> ClientHandler B
-                                           │
-                                           ▼
-                                     Send to Client B
-
-4. Disconnection Flow:
-   Client ----closes/crashes----> ClientHandler
-                                      │
-                                      ▼
-                                Set User Offline
-                                      │
-                                      ▼
-                            Remove from onlineClients
-                                      │
-                                      ▼
-                                Close Socket
-
-Static Data Structure:
-onlineClients = {
-    "user1@email.com": ClientHandler1,
-    "user2@email.com": ClientHandler2,
-    ...
-}
-
-Message Types:
-1. CHAT: Regular chat message
-2. LOGOUT: Client logout request
-3. CONFIRMATION: Message delivery status
-4. ERROR: Error notifications
-*/
+ * ClientHandler Flow Schema:
+ * 
+ * 1. Client Connection:
+ * Client Socket ----connects----> Server Socket
+ * │
+ * ▼
+ * Create ClientHandler
+ * │
+ * ▼
+ * Start Thread
+ * 
+ * 2. Authentication Flow:
+ * Client ----sends credentials----> ClientHandler
+ * │
+ * ▼
+ * Validate User
+ * │
+ * ┌─────────┴──────────┐
+ * ▼ ▼
+ * AUTH_SUCCESS AUTH_FAILED
+ * │ │
+ * ▼ ▼
+ * Add to onlineClients Close Connection
+ * │
+ * ▼
+ * Send Offline Messages
+ * 
+ * 3. Message Handling Flow:
+ * a) Sending Message:
+ * Client A ----sends message----> ClientHandler A
+ * │
+ * Save to DB
+ * │
+ * Check Receiver
+ * │
+ * ┌─────────────┴────────────┐
+ * ▼ ▼
+ * Receiver Online Receiver Offline
+ * │ │
+ * Forward Message Queue Message
+ * │ │
+ * Send "delivered" Send "queued"
+ * to sender to sender
+ * 
+ * b) Receiving Message:
+ * ClientHandler A ----forwards----> ClientHandler B
+ * │
+ * ▼
+ * Send to Client B
+ * 
+ * 4. Disconnection Flow:
+ * Client ----closes/crashes----> ClientHandler
+ * │
+ * ▼
+ * Set User Offline
+ * │
+ * ▼
+ * Remove from onlineClients
+ * │
+ * ▼
+ * Close Socket
+ * 
+ * Static Data Structure:
+ * onlineClients = {
+ * "user1@email.com": ClientHandler1,
+ * "user2@email.com": ClientHandler2,
+ * ...
+ * }
+ * 
+ * Message Types:
+ * 1. CHAT: Regular chat message
+ * 2. LOGOUT: Client logout request
+ * 3. CONFIRMATION: Message delivery status
+ * 4. ERROR: Error notifications
+ */

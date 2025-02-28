@@ -112,18 +112,20 @@ public class MessageBroker {
             }
         }
 
-        // Si la livraison directe n'est pas possible ou le destinataire est hors-ligne,
-        // ajouter le message dans la file d'attente et le persister
-        final MessageQueue queue = getOrCreateQueue(message.getReceiverEmail());
-        queue.addToQueue(message);
-
-        // Mise à jour du status en "QUEUED" et persistance du message
+        // Si la livraison directe n'est pas possible, persister le message avec le
+        // statut QUEUED
         message.setStatus("QUEUED");
         try {
             messageRepository.saveMessage(message);
         } catch (final IOException e) {
             System.err.println("Erreur lors de la persistance du message: " + e.getMessage());
+            return false;
         }
+
+        // Ajouter le message à la file d'attente après persistance réussie
+        final MessageQueue queue = getOrCreateQueue(message.getReceiverEmail());
+        queue.addToQueue(message);
+
         System.out.println("Message " + message.getId() + " mis en file d'attente pour " + message.getReceiverEmail());
         return false;
     }
@@ -133,12 +135,15 @@ public class MessageBroker {
      * messages en attente.
      */
     public void registerConsumer(final String userEmail, final Consumer<Message> consumer) {
-        if (consumer == null)
+        if (consumer == null) {
             return;
+        }
         System.out.println("Enregistrement du consommateur pour " + userEmail);
         final MessageQueue queue = getOrCreateQueue(userEmail);
+        queue.clearQueue();
         // Recharger les messages persistés non délivrés pour cet utilisateur
         queue.reloadPersistedMessages();
+        // Enregistrer le consommateur et déclencher la livraison
         queue.setConsumer(consumer);
     }
 
@@ -158,13 +163,19 @@ public class MessageBroker {
             final var optMsg = messageRepository.findById(messageId);
             if (optMsg.isPresent()) {
                 final Message msg = optMsg.get();
-                msg.setRead(true);
-                msg.setStatus("ACKNOWLEDGED");
-                messageRepository.updateMessage(msg);
-                System.out.println("Message " + messageId + " acquitté.");
+                // Si le message n'est pas déjà acquitté, on met à jour son status
+                if (!"ACKNOWLEDGED".equals(msg.getStatus())) {
+                    msg.setRead(true);
+                    msg.setStatus("ACKNOWLEDGED");
+                    messageRepository.updateMessage(msg);
+                    System.out.println("Message " + messageId + " marqué comme ACKNOWLEDGED.");
+                }
+            } else {
+                // Si le message n'est plus trouvé, il a peut-être déjà été supprimé
+                System.out.println("Message " + messageId + " introuvable (probablement déjà supprimé).");
             }
         } catch (final IOException e) {
-            System.err.println("Erreur lors de l'acquittement: " + e.getMessage());
+            System.err.println("Erreur lors de l'acquittement du message " + messageId + ": " + e.getMessage());
         }
     }
 
@@ -224,9 +235,6 @@ public class MessageBroker {
             System.out.println("File d'attente créée pour " + userEmail);
         }
 
-        /**
-         * Définit le consommateur et déclenche la livraison des messages en attente.
-         */
         public synchronized void setConsumer(final Consumer<Message> consumer) {
             this.consumer = consumer;
             if (consumer != null) {
@@ -234,9 +242,6 @@ public class MessageBroker {
             }
         }
 
-        /**
-         * Ajoute un message non persisté (nouveau message en file d'attente).
-         */
         public synchronized void addToQueue(final Message message) {
             queue.offer(message);
             System.out.println("Message " + message.getId() + " ajouté en file pour " + userEmail);
@@ -245,22 +250,27 @@ public class MessageBroker {
             }
         }
 
-        /**
-         * Ajoute un message déjà persisté lors du démarrage.
-         */
         public synchronized void addPersistedMessage(final Message message) {
             queue.offer(message);
             System.out.println("Message persisté " + message.getId() + " chargé dans la file de " + userEmail);
         }
 
         /**
-         * Recharge les messages en attente depuis le dépôt persistant (pour ce
-         * receiver).
+         * Vide la file d'attente actuelle
          */
+        public synchronized void clearQueue() {
+            int size = queue.size();
+            if (size > 0) {
+                System.out.println("Nettoyage de " + size + " messages en file pour " + userEmail);
+                queue.clear();
+            }
+        }
+
         public synchronized void reloadPersistedMessages() {
             try {
                 final List<Message> pending = messageRepository.loadMessages().stream()
-                        .filter(m -> m.getReceiverEmail().equals(userEmail))
+                        .filter(m -> m.getReceiverEmail().equals(userEmail)
+                                && "QUEUED".equals(m.getStatus()))
                         .collect(Collectors.toList());
                 for (final Message msg : pending) {
                     if (!queue.contains(msg)) {
@@ -269,37 +279,37 @@ public class MessageBroker {
                     }
                 }
             } catch (final IOException e) {
-                System.err
-                        .println("Erreur lors du rechargement des messages pour " + userEmail + ": " + e.getMessage());
+                System.err.println("Erreur lors du rechargement des messages pour " + userEmail + ": "
+                        + e.getMessage());
             }
         }
 
-        /**
-         * Tente la livraison de tous les messages en attente.
-         */
         private synchronized void deliverQueuedMessages() {
-            if (consumer == null)
+            if (consumer == null) {
                 return;
-            Message msg;
-            while ((msg = queue.poll()) != null) {
+            }
+            while (!queue.isEmpty()) {
+                final Message msg = queue.peek();
                 try {
+                    // Tenter de livrer le message via le callback du consommateur
                     consumer.accept(msg);
+                    // Une fois livré, mettre à jour le status et supprimer le message persistant
                     msg.setStatus("DELIVERED");
-                    // Une fois livré, on peut envisager de supprimer sa persistance.
-                    messageRepository.deleteMessage(msg.getId());
-                    System.out.println("Message " + msg.getId() + " livré à " + userEmail);
+                    messageRepository.updateMessage(msg);
+                    final boolean deleted = messageRepository.deleteMessage(msg.getId());
+                    if (deleted) {
+                        System.out.println("Message " + msg.getId() + " livré et supprimé pour " + userEmail);
+                    }
+                    // Retirer le message de la file après livraison réussie
+                    queue.poll();
                 } catch (final Exception e) {
                     System.err.println("Échec de livraison pour " + msg.getId() + ": " + e.getMessage());
-                    // Si la livraison échoue, remettre le message en file
-                    queue.offer(msg);
+                    // Interrompre la boucle afin d'essayer de redélivrer ce message plus tard
                     break;
                 }
             }
         }
 
-        /**
-         * Tente une redélivrance si un consommateur est disponible.
-         */
         public synchronized void attemptRedelivery() {
             if (consumer != null) {
                 deliverQueuedMessages();
