@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="org.example.client.gui.controllers.ChatController">
+    
+    <!-- En-tête avec le nom de l'utilisateur et le bouton de déconnexion -->
+    <top>
+        <HBox alignment="CENTER_LEFT" spacing="10" style="-fx-background-color: #4CAF50; -fx-padding: 10px;">
+            <Label fx:id="userEmailLabel" text="Non connecté" style="-fx-text-fill: white; -fx-font-weight: bold;"/>
+            <Region HBox.hgrow="ALWAYS" />
+            <Button text="Déconnexion" onAction="#handleLogout" 
+                    style="-fx-background-color: #f44336; -fx-text-fill: white;"/>
+        </HBox>
+    </top>
+    
+    <!-- Partie centrale avec la liste des contacts et la zone de chat -->
+    <center>
+        <SplitPane dividerPositions="0.3">
+            <!-- Liste des contacts -->
+            <VBox spacing="10" style="-fx-padding: 10px;">
+                <Label text="Contacts" style="-fx-font-weight: bold;"/>
+                <ListView fx:id="contactListView" VBox.vgrow="ALWAYS"/>
+                <HBox spacing="5">
+                    <TextField fx:id="newContactField" promptText="Email du contact" HBox.hgrow="ALWAYS"/>
+                    <Button text="+" onAction="#handleAddContact"/>
+                </HBox>
+            </VBox>
+            
+            <!-- Zone de chat -->
+            <VBox>
+                <!-- Historique des messages -->
+                <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS">
+                    <VBox fx:id="chatHistoryContainer" spacing="10" style="-fx-padding: 10px;"/>
+                </ScrollPane>
+                
+                <!-- Zone de saisie du message -->
+                <HBox spacing="5" alignment="CENTER" style="-fx-padding: 10px;">
+                    <TextField fx:id="messageField" promptText="Entrez votre message" HBox.hgrow="ALWAYS"/>
+                    <Button text="Envoyer" onAction="#handleSendMessage" 
+                            style="-fx-background-color: #4CAF50; -fx-text-fill: white;"/>
+                </HBox>
+            </VBox>
+        </SplitPane>
+    </center>
+    
+    <!-- Barre d'état en bas -->
+    <bottom>
+        <HBox alignment="CENTER_LEFT" style="-fx-padding: 5px; -fx-background-color: #f0f0f0;">
+            <Label fx:id="statusLabel" text="Prêt"/>
+        </HBox>
+    </bottom>
+</BorderPane>

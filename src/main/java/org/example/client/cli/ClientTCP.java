@@ -1,14 +1,15 @@
-package org.example;
+package org.example.client.cli;
 
 import java.io.*;
 import java.net.*;
 import java.util.Scanner;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.example.dto.Credentials;
+import org.example.model.Message;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import org.example.Entities.Credentials;
-import org.example.Entities.Message;
 
 public class ClientTCP {
     private static final String ADRESSE_SERVEUR = "localhost";

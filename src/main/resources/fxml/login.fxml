@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Font?>
+
+<BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="400.0" minWidth="600.0"
+    prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/17"
+    xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.client.gui.controllers.LoginController">
+    <center>
+        <VBox alignment="CENTER" maxWidth="400.0" spacing="15.0" BorderPane.alignment="CENTER">
+            <children>
+                <Label text="Chat Application" textAlignment="CENTER">
+                    <font>
+                        <Font name="System Bold" size="24.0" />
+                    </font>
+                </Label>
+                <VBox spacing="5.0">
+                    <children>
+                        <Label text="Email" />
+                        <TextField fx:id="emailField" promptText="Entrez votre email" />
+                    </children>
+                </VBox>
+                <VBox spacing="5.0">
+                    <children>
+                        <Label text="Mot de passe" />
+                        <PasswordField fx:id="passwordField" promptText="Entrez votre mot de passe" />
+                    </children>
+                </VBox>
+                <Button fx:id="loginButton" defaultButton="true" maxWidth="1.7976931348623157E308"
+                    mnemonicParsing="false" onAction="#handleLogin" text="Se connecter">
+                    <VBox.margin>
+                        <Insets top="10.0" />
+                    </VBox.margin>
+                </Button>
+            </children>
+            <BorderPane.margin>
+                <Insets left="20.0" right="20.0" />
+            </BorderPane.margin>
+            <padding>
+                <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
+            </padding>
+        </VBox>
+    </center>
+    <bottom>
+        <HBox alignment="CENTER" prefHeight="50.0" spacing="10.0" BorderPane.alignment="CENTER">
+            <children>
+                <Label text="© 2023 Chat Application" textFill="#686868" />
+            </children>
+        </HBox>
+    </bottom>
+</BorderPane>

@@ -1,39 +1,44 @@
-package org.example;
+package org.example.server;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.Map;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.example.Entities.Credentials;
-import org.example.Entities.Message;
-import org.example.service.MessageService;
+import org.example.broker.MessageBroker;
+import org.example.dto.Credentials;
+import org.example.model.Message;
 import org.example.service.UserService;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 public class ClientHandler implements Runnable {
-    private Socket clientSocket;
+    private final Socket clientSocket;
     private String clientEmail;
     private PrintWriter out;
     private BufferedReader in;
     private final ObjectMapper objectMapper;
-    private final MessageService messageService;
     private final UserService userService;
+    private final MessageBroker messageBroker;
+    private boolean isRunning = true;
     
     // Map to store all online clients (shared between all handlers)
     private static Map<String, ClientHandler> onlineClients = new ConcurrentHashMap<>();
     
-    public ClientHandler(Socket socket) {
+    public ClientHandler(final Socket socket) {
         this.clientSocket = socket;
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
-        this.messageService = new MessageService();
         this.userService = new UserService();
+        this.messageBroker = MessageBroker.getInstance();
+        
         try {
             this.out = new PrintWriter(socket.getOutputStream(), true);
             this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        } catch (IOException e) {
+        } catch (final IOException e) {
             e.printStackTrace();
         }
     }
@@ -42,16 +47,16 @@ public class ClientHandler implements Runnable {
     public void run() {
         try {
             // Step 1: Handle Authentication
-            String jsonCredentials = in.readLine();
-            Credentials credentials = objectMapper.readValue(jsonCredentials, Credentials.class);
+            final String jsonCredentials = in.readLine();
+            final Credentials credentials = objectMapper.readValue(jsonCredentials, Credentials.class);
             
             if (userService.authenticateUser(credentials.getEmail(), credentials.getPassword())) {
                 // Authentication successful
                 setClientEmail(credentials.getEmail());
                 out.println("AUTH_SUCCESS");
                 
-                // Send any offline messages
-                sendOfflineMessages();
+                // Enregistrer ce client comme consommateur de messages
+                registerAsConsumer();
                 
                 // Start handling messages
                 handleMessages();
@@ -59,35 +64,39 @@ public class ClientHandler implements Runnable {
                 out.println("AUTH_FAILED");
                 clientSocket.close();
             }
-        } catch (IOException e) {
+        } catch (final IOException e) {
             System.out.println("Client disconnected during authentication: " + e.getMessage());
         } finally {
             handleDisconnection();
         }
     }
 
-    private void sendOfflineMessages() {
-        try {
-            List<Message> offlineMessages = messageService.getUnreadMessages(clientEmail);
-            for (Message message : offlineMessages) {
-                String jsonMessage = objectMapper.writeValueAsString(message);
+    private void registerAsConsumer() {
+        messageBroker.registerConsumer(clientEmail, message -> {
+            try {
+                final String jsonMessage = objectMapper.writeValueAsString(message);
                 sendMessage(jsonMessage);
+                System.out.println("Message envoyé à " + clientEmail + ": " + message.getId());
+            } catch (final IOException e) {
+                System.err.println("Erreur lors de l'envoi d'un message à " + clientEmail + ": " + e.getMessage());
+                throw new RuntimeException("Échec d'envoi du message", e);
             }
-        } catch (IOException e) {
-            System.out.println("Error sending offline messages: " + e.getMessage());
-        }
+        });
     }
 
     private void handleMessages() {
         try {
             String messageData;
-            while ((messageData = in.readLine()) != null) {
+            while (isRunning && (messageData = in.readLine()) != null) {
                 try {
-                    Message message = objectMapper.readValue(messageData, Message.class);
+                    final Message message = objectMapper.readValue(messageData, Message.class);
                     
                     switch (message.getType()) {
                         case "CHAT":
                             handleChatMessage(message);
+                            break;
+                        case "ACKNOWLEDGE":
+                            handleAcknowledge(message);
                             break;
                         case "LOGOUT":
                             handleLogout();
@@ -95,40 +104,46 @@ public class ClientHandler implements Runnable {
                         default:
                             System.out.println("Unknown message type: " + message.getType());
                     }
-                } catch (IOException e) {
+                } catch (final IOException e) {
                     System.out.println("Error processing message: " + e.getMessage());
                     sendMessage("{\"type\":\"ERROR\",\"content\":\"Invalid message format\"}");
                 }
             }
-        } catch (IOException e) {
-            System.out.println("Client disconnected: " + clientEmail);
+        } catch (final IOException e) {
+            if (isRunning) {
+                System.out.println("Client disconnected: " + clientEmail);
+            }
         }
     }
 
-    private void handleChatMessage(Message message) throws IOException {
-        // Save to database
-        messageService.sendMessage(message);
-        
+    private void handleChatMessage(final Message message) throws IOException {
         // Check if receiver is online
-        ClientHandler receiverHandler = onlineClients.get(message.getReceiverEmail());
-        if (receiverHandler != null) {
-            // Forward message
-            String jsonMessage = objectMapper.writeValueAsString(message);
-            receiverHandler.sendMessage(jsonMessage);
-            
-            // Create confirmation message
-            Message confirmation = new Message(null, message.getSenderEmail(), null);
-            confirmation.setType("CONFIRMATION");
-            confirmation.setStatus("delivered");
-            confirmation.setId(message.getId());
-            sendMessage(objectMapper.writeValueAsString(confirmation));
-        } else {
-            // Create queued confirmation
-            Message confirmation = new Message(null, message.getSenderEmail(), null);
-            confirmation.setType("CONFIRMATION");
-            confirmation.setStatus("queued");
-            confirmation.setId(message.getId());
-            sendMessage(objectMapper.writeValueAsString(confirmation));
+        final ClientHandler receiverHandler = onlineClients.get(message.getReceiverEmail());
+        
+        // Utiliser le broker pour envoyer le message
+        final boolean delivered = messageBroker.sendMessage(message, 
+            receiverHandler != null ? msg -> {
+                try {
+                    final String jsonMessage = objectMapper.writeValueAsString(msg);
+                    receiverHandler.sendMessage(jsonMessage);
+                } catch (final IOException e) {
+                    System.err.println("Erreur lors de l'envoi direct du message: " + e.getMessage());
+                    throw new RuntimeException("Échec d'envoi du message", e);
+                }
+            } : null);
+        
+        // Envoyer une confirmation à l'expéditeur
+        final Message confirmation = new Message(null, message.getSenderEmail(), null);
+        confirmation.setType("CONFIRMATION");
+        confirmation.setStatus(delivered ? "DELIVERED" : "QUEUED");
+        confirmation.setId(message.getId());
+        sendMessage(objectMapper.writeValueAsString(confirmation));
+    }
+    
+    private void handleAcknowledge(final Message message) {
+        // Le client confirme la réception d'un message
+        if (message.getId() != null) {
+            messageBroker.acknowledgeMessage(message.getId());
         }
     }
 
@@ -136,8 +151,9 @@ public class ClientHandler implements Runnable {
         try {
             userService.setUserOnlineStatus(clientEmail, false);
             sendMessage("{\"type\":\"LOGOUT_CONFIRM\"}");
+            isRunning = false;
             clientSocket.close();
-        } catch (IOException e) {
+        } catch (final IOException e) {
             System.out.println("Error during logout: " + e.getMessage());
         }
     }
@@ -145,19 +161,23 @@ public class ClientHandler implements Runnable {
     private void handleDisconnection() {
         try {
             if (clientEmail != null) {
+                // Désenregistrer ce client comme consommateur de messages
+                messageBroker.unregisterConsumer(clientEmail);
+                
                 userService.setUserOnlineStatus(clientEmail, false);
                 onlineClients.remove(clientEmail);
                 System.out.println("Client disconnected and removed: " + clientEmail);
             }
+            isRunning = false;
             if (!clientSocket.isClosed()) {
                 clientSocket.close();
             }
-        } catch (IOException e) {
+        } catch (final IOException e) {
             System.out.println("Error during disconnection: " + e.getMessage());
         }
     }
 
-    public void sendMessage(String message) {
+    public void sendMessage(final String message) {
         out.println(message);
     }
 
@@ -165,7 +185,7 @@ public class ClientHandler implements Runnable {
         return clientEmail;
     }
 
-    public void setClientEmail(String email) throws IOException {
+    public void setClientEmail(final String email) throws IOException {
         this.clientEmail = email;
         onlineClients.put(email, this);
         userService.setUserOnlineStatus(email, true);
