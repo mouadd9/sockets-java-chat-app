@@ -51,7 +51,7 @@
     <bottom>
         <HBox alignment="CENTER" prefHeight="50.0" spacing="10.0" BorderPane.alignment="CENTER">
             <children>
-                <Label text="© 2023 Chat Application" textFill="#686868" />
+                <Label text="© 2025 Chat Application" textFill="#686868" />
             </children>
         </HBox>
     </bottom>

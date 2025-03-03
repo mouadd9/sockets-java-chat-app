@@ -1,4 +1,4 @@
-package org.example.service;
+/* package org.example.service;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,3 +37,4 @@ public class MessageService {
         return messageRepository.getUnreadMessages(userEmail);
     }
 }
+ */

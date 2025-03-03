@@ -163,15 +163,17 @@ public class MessageBroker {
             final var optMsg = messageRepository.findById(messageId);
             if (optMsg.isPresent()) {
                 final Message msg = optMsg.get();
-                // Si le message n'est pas déjà acquitté, on met à jour son status
+                // Si le message n'est pas déjà acquitté, on met à jour son status et on le
+                // supprime
                 if (!"ACKNOWLEDGED".equals(msg.getStatus())) {
                     msg.setRead(true);
                     msg.setStatus("ACKNOWLEDGED");
                     messageRepository.updateMessage(msg);
-                    System.out.println("Message " + messageId + " marqué comme ACKNOWLEDGED.");
+                    if (messageRepository.deleteMessage(msg.getId())) {
+                        System.out.println("Message " + messageId + " supprimé après acquittement.");
+                    }
                 }
             } else {
-                // Si le message n'est plus trouvé, il a peut-être déjà été supprimé
                 System.out.println("Message " + messageId + " introuvable (probablement déjà supprimé).");
             }
         } catch (final IOException e) {
@@ -182,7 +184,7 @@ public class MessageBroker {
     private void monitorMessages() {
         while (running) {
             try {
-                Thread.sleep(5 * 60 * 1000);
+                Thread.sleep(5 * 1000);
                 queues.values().forEach(MessageQueue::attemptRedelivery);
                 checkExpiredMessages();
             } catch (final InterruptedException ie) {
@@ -293,14 +295,11 @@ public class MessageBroker {
                 try {
                     // Tenter de livrer le message via le callback du consommateur
                     consumer.accept(msg);
-                    // Une fois livré, mettre à jour le status et supprimer le message persistant
+                    // Une fois livré, mettre à jour le status
                     msg.setStatus("DELIVERED");
                     messageRepository.updateMessage(msg);
-                    final boolean deleted = messageRepository.deleteMessage(msg.getId());
-                    if (deleted) {
-                        System.out.println("Message " + msg.getId() + " livré et supprimé pour " + userEmail);
-                    }
-                    // Retirer le message de la file après livraison réussie
+                    // Ne pas supprimer le message ici ; le message sera supprimé lorsqu'il sera
+                    // acquitté
                     queue.poll();
                 } catch (final Exception e) {
                     System.err.println("Échec de livraison pour " + msg.getId() + ": " + e.getMessage());

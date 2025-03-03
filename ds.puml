@@ -1,0 +1,72 @@
+@startuml
+title Detailed Java Chat Message Flow
+
+actor User as user
+participant "Client (GUI/TCP)" as client
+participant "ChatServer" as server
+participant "ClientHandler" as handler
+participant "UserService" as userService
+participant "JsonUserRepository" as userRepo
+participant "MessageBroker" as broker
+participant "MessageQueue" as queue
+participant "JsonMessageRepository" as msgRepo
+participant "Recipient ClientHandler" as recipientHandler
+
+== Authentication Sequence ==
+user -> client: Enter credentials
+client -> server: Connect()
+server -> handler: new ClientHandler()
+handler -> userService: authenticateUser(email, password)
+userService -> userRepo: findByEmail(email)
+userRepo --> userService: Optional<User>
+userService --> handler: Authentication result
+
+alt Authentication Success
+    handler -> userRepo: updateUserStatus(email, true)
+    handler -> broker: registerConsumer(email, callback)
+    broker -> queue: new MessageQueue(email)
+    broker -> msgRepo: loadMessages()
+    msgRepo --> broker: List<Message>
+    broker -> queue: addPersistedMessage()
+    handler --> client: AUTH_SUCCESS
+else Authentication Failed
+    handler --> client: AUTH_FAILED
+end
+
+== Online Message Delivery ==
+user -> client: Send message (CHAT type)
+client -> handler: Forward message
+handler -> handler: Check onlineClients map for receiver
+handler -> broker: sendMessage(message, callback)
+broker -> message: Generate ID/timestamp if missing
+alt Recipient Online
+    broker -> recipientHandler: directDeliveryCallback.accept(message)
+    recipientHandler -> client: Send via socket
+    broker -> msgRepo: updateMessage(DELIVERED)
+    broker --> handler: Return true
+else Recipient Offline
+    broker -> msgRepo: saveMessage(QUEUED)
+    broker -> queue: addToQueue()
+    broker --> handler: Return false
+end
+handler -> client: Send CONFIRMATION status
+
+== Queue Processing ==
+broker -> queue: deliverQueuedMessages()
+loop For each queued message
+    queue -> recipientHandler: consumer.accept(message)
+    recipientHandler -> client: Deliver message
+    queue -> msgRepo: updateMessage(DELIVERED)
+    client -> handler: Send ACKNOWLEDGE
+    handler -> broker: acknowledgeMessage(id)
+    broker -> msgRepo: updateMessage(ACKNOWLEDGED)
+    broker -> msgRepo: deleteMessage(id)
+end
+
+== Expiration Handling ==
+loop Every 5 seconds
+    broker -> msgRepo: loadMessages()
+    broker -> msgRepo: updateMessage(EXPIRED) for old messages
+end
+
+@enduml

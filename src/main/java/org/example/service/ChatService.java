@@ -100,9 +100,6 @@ public class ChatService {
         return true;
     }
     
-    /**
-     * Acquitte la réception d'un message
-     */
     public void acknowledgeMessage(final String messageId) throws IOException {
         if (socket == null || socket.isClosed() || out == null) {
             throw new IOException("Non connecté au serveur");
