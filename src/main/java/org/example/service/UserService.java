@@ -17,7 +17,7 @@ public class UserService {
     /**
      * Authentifie un utilisateur par email et mot de passe
      */
-    public boolean authenticateUser(final String email, final String password) throws IOException {
+    public boolean authenticate(final String email, final String password) throws IOException {
         final Optional<User> userOpt = userRepository.findByEmail(email);
         if (userOpt.isPresent()) {
             final User user = userOpt.get();

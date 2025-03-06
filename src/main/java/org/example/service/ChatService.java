@@ -75,8 +75,13 @@ public class ChatService {
     }
 
     public void disconnect() throws IOException {
-        isRunning = false;
+        // Envoyer un message explicite de déconnexion
+        final Message logoutMsg = new Message();
+        logoutMsg.setType("LOGOUT");
+        logoutMsg.setSenderEmail(userEmail);
+        sendMessage(logoutMsg);
 
+        // Fermer les connexions
         if (out != null)
             out.close();
         if (in != null)
@@ -84,34 +89,28 @@ public class ChatService {
         if (socket != null)
             socket.close();
 
+        // Réinitialiser l'état
         userEmail = null;
+        messageConsumer = null;
+
+        System.out.println("Déconnexion complète");
     }
 
     public boolean sendMessage(final Message message) throws IOException {
         if (socket == null || socket.isClosed() || out == null) {
             throw new IOException("Non connecté au serveur");
         }
-
-        message.setType("CHAT");
+        // Ne modifier le type que si ce n'est pas un message spécial (comme LOGOUT)
+        if (!"LOGOUT".equals(message.getType())) {
+            message.setType("CHAT");
+        }
         final String jsonMessage = objectMapper.writeValueAsString(message);
         out.println(jsonMessage);
-
-        // Idéalement, on attendrait une confirmation du serveur ici
         return true;
     }
-    
+
     public void acknowledgeMessage(final String messageId) throws IOException {
-        if (socket == null || socket.isClosed() || out == null) {
-            throw new IOException("Non connecté au serveur");
-        }
-        
-        final Message ackMessage = new Message();
-        ackMessage.setType("ACKNOWLEDGE");
-        ackMessage.setId(messageId);
-        ackMessage.setSenderEmail(userEmail);
-        
-        final String jsonMessage = objectMapper.writeValueAsString(ackMessage);
-        out.println(jsonMessage);
+        messageRepository.deleteMessage(messageId);
     }
 
     public List<String> getContacts(final String userEmail) throws IOException {
@@ -163,7 +162,7 @@ public class ChatService {
                         if ("CHAT".equals(message.getType())) {
                             // Acquitter automatiquement la réception du message
                             acknowledgeMessage(message.getId());
-                            
+
                             // Transmettre le message au consommateur
                             if (messageConsumer != null) {
                                 messageConsumer.accept(message);
