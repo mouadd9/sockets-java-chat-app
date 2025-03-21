@@ -82,4 +82,15 @@ public class JsonLocalMessageRepository {
         messages.add(message);
         saveLocalMessages(userEmail, messages);
     }
+
+    /**
+     * Supprime un message de l'historique local pour l'utilisateur.
+     */
+    public void removeConversation(final String userEmail, final String contactEmail) throws IOException {
+        final List<Message> messages = loadLocalMessages(userEmail);
+        messages.removeIf(m ->
+                (m.getSenderEmail().equals(userEmail) && m.getReceiverEmail().equals(contactEmail))
+             || (m.getSenderEmail().equals(contactEmail) && m.getReceiverEmail().equals(userEmail)));
+        saveLocalMessages(userEmail, messages);
+    }
 }
