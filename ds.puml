@@ -1,72 +1,89 @@
 @startuml
-title Detailed Java Chat Message Flow
+box "Client Émetteur" #F0B27A
+participant ChatController as SenderController
+participant ChatService as SenderService
+participant JsonLocalMessageRepository as SenderLocalRepo
+end box
 
-actor User as user
-participant "Client (GUI/TCP)" as client
-participant "ChatServer" as server
-participant "ClientHandler" as handler
-participant "UserService" as userService
-participant "JsonUserRepository" as userRepo
-participant "MessageBroker" as broker
-participant "MessageQueue" as queue
-participant "JsonMessageRepository" as msgRepo
-participant "Recipient ClientHandler" as recipientHandler
+box "Serveur" #7DCEA0
+participant ClientHandler as SenderHandler
+participant MessageBroker
+end box
 
-== Authentication Sequence ==
-user -> client: Enter credentials
-client -> server: Connect()
-server -> handler: new ClientHandler()
-handler -> userService: authenticateUser(email, password)
-userService -> userRepo: findByEmail(email)
-userRepo --> userService: Optional<User>
-userService --> handler: Authentication result
+box "Client Récepteur" #85C1E9
+participant ClientHandler as ReceiverHandler
+participant ChatService as ReceiverService
+participant ChatController as ReceiverController
+participant JsonLocalMessageRepository as ReceiverLocalRepo
+end box
 
-alt Authentication Success
-    handler -> userRepo: updateUserStatus(email, true)
-    handler -> broker: registerConsumer(email, callback)
-    broker -> queue: new MessageQueue(email)
-    broker -> msgRepo: loadMessages()
-    msgRepo --> broker: List<Message>
-    broker -> queue: addPersistedMessage()
-    handler --> client: AUTH_SUCCESS
-else Authentication Failed
-    handler --> client: AUTH_FAILED
+box "Persistance" #F7DC6F
+participant JsonMessageRepository
+participant JsonUserRepository
+end box
+
+title Workflow complet d'envoi/réception de messages
+
+SenderController -> SenderService : handleSendMessage(message)
+activate SenderService
+
+SenderService -> SenderHandler : envoi du message (JSON via socket)
+activate SenderHandler
+
+SenderHandler -> MessageBroker : sendMessage(message)
+activate MessageBroker
+
+MessageBroker -> JsonUserRepository : checkQueue(receiverEmail)
+activate JsonUserRepository
+JsonUserRepository --> MessageBroker : status
+deactivate JsonUserRepository
+
+alt Destinataire en ligne
+    MessageBroker -> ReceiverHandler : onMessageReceived(message)
+    activate ReceiverHandler
+    
+    ReceiverHandler -> ReceiverService : pushMessage(message)
+    activate ReceiverService
+    
+    ReceiverService -> ReceiverController : handleIncomingMessage()
+    activate ReceiverController
+    
+    ReceiverController -> ReceiverLocalRepo : addLocalMessage()
+    activate ReceiverLocalRepo
+    ReceiverLocalRepo --> ReceiverController : message ajouté localement
+    deactivate ReceiverLocalRepo
+    
+    ReceiverController -> ReceiverService : acknowledgeMessage(message.id)
+    deactivate ReceiverController
+    
+    ReceiverService -> ReceiverHandler : retour ACK
+    deactivate ReceiverService
+    
+    ReceiverHandler -> MessageBroker : ACK réception
+    deactivate ReceiverHandler
+    
+    MessageBroker -> JsonMessageRepository : updateStatus(DELIVERED)
+    activate JsonMessageRepository
+    JsonMessageRepository --> MessageBroker : statut mis à jour
+    deactivate JsonMessageRepository
+else Destinataire hors ligne
+    MessageBroker -> JsonMessageRepository : persistMessage(QUEUED)
+    activate JsonMessageRepository
+    JsonMessageRepository --> MessageBroker : message sauvegardé
+    deactivate JsonMessageRepository
 end
 
-== Online Message Delivery ==
-user -> client: Send message (CHAT type)
-client -> handler: Forward message
-handler -> handler: Check onlineClients map for receiver
-handler -> broker: sendMessage(message, callback)
-broker -> message: Generate ID/timestamp if missing
-alt Recipient Online
-    broker -> recipientHandler: directDeliveryCallback.accept(message)
-    recipientHandler -> client: Send via socket
-    broker -> msgRepo: updateMessage(DELIVERED)
-    broker --> handler: Return true
-else Recipient Offline
-    broker -> msgRepo: saveMessage(QUEUED)
-    broker -> queue: addToQueue()
-    broker --> handler: Return false
-end
-handler -> client: Send CONFIRMATION status
+MessageBroker --> SenderHandler : ACK
+deactivate MessageBroker
 
-== Queue Processing ==
-broker -> queue: deliverQueuedMessages()
-loop For each queued message
-    queue -> recipientHandler: consumer.accept(message)
-    recipientHandler -> client: Deliver message
-    queue -> msgRepo: updateMessage(DELIVERED)
-    client -> handler: Send ACKNOWLEDGE
-    handler -> broker: acknowledgeMessage(id)
-    broker -> msgRepo: updateMessage(ACKNOWLEDGED)
-    broker -> msgRepo: deleteMessage(id)
-end
+SenderHandler --> SenderService : ACK du serveur
+deactivate SenderHandler
 
-== Expiration Handling ==
-loop Every 5 seconds
-    broker -> msgRepo: loadMessages()
-    broker -> msgRepo: updateMessage(EXPIRED) for old messages
-end
+SenderService -> SenderLocalRepo : addLocalMessage()
+activate SenderLocalRepo
+SenderLocalRepo --> SenderService : message ajouté localement
+deactivate SenderLocalRepo
 
+SenderService --> SenderController : mise à jour UI
+deactivate SenderService
 @enduml

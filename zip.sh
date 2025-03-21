@@ -4,12 +4,12 @@
 WORKSPACE_DIR=$(pwd)
 TEMP_FILE="/tmp/code_content_$(date +%Y%m%d_%H%M%S).txt"
 
-echo "🔍 Recherche des fichiers .ts et .java dans le workspace..."
+echo "🔍 Recherche des fichiers dans le workspace..."
 echo "📂 Workspace: $WORKSPACE_DIR"
 
 # Trouver tous les fichiers .ts et .java, en excluant node_modules et target
 find "$WORKSPACE_DIR" \
-    -type f \( -name "*.ts" -o -name "*.java" \) \
+    -type f \( -name "*.fxml" -o -name "*.java" \) \
     ! -path "*/node_modules/*" \
     ! -path "*/target/*" \
     ! -path "*/.git/*" \

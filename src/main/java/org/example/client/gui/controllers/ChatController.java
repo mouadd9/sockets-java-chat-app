@@ -119,8 +119,33 @@ public class ChatController {
                 contacts.add(email);
                 newContactField.clear();
                 setStatus("Contact ajouté: " + email);
+            }
+        } catch (final IllegalArgumentException e) {
+            // Afficher le message d'erreur spécifique
+            setStatus("Erreur: " + e.getMessage());
+        } catch (final IOException e) {
+            setStatus("Erreur de connexion: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void handleRemoveContact() {
+        if (selectedContact == null) {
+            setStatus("Aucun contact sélectionné pour la suppression");
+            return;
+        }
+        try {
+            final boolean removed = chatService.removeContact(userEmail, selectedContact);
+            if (removed) {
+                contacts.remove(selectedContact);
+                newContactField.clear();
+                setStatus("Contact supprimé: " + selectedContact);
+                // Optionnel : nettoyer la conversation affichée
+                if (selectedContact.equals(contactListView.getSelectionModel().getSelectedItem())) {
+                    chatHistoryContainer.getChildren().clear();
+                }
             } else {
-                setStatus("Impossible d'ajouter ce contact");
+                setStatus("La suppression du contact a échoué");
             }
         } catch (final IOException e) {
             setStatus("Erreur: " + e.getMessage());

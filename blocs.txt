@@ -1,0 +1,28 @@
+Bloc 1: Architecture fondamentale et sécurité (~33h)
+Ce bloc constitue la fondation technique de l'application :
+
+Architecture de communication (tâche 1)
+Système d'authentification complet (tâches 2, 3, 4)
+Structures de données fondamentales (tâches 5, 7, 9, 16)
+Gestion des erreurs réseau (tâche 27)
+Chiffrement de bout en bout (tâche 32)
+
+
+Bloc 2: Messagerie et fonctionnalités essentielles (~34h)
+Ce bloc implémente les fonctionnalités de base de la messagerie :
+
+Gestion de profil et contacts (tâches 6, 8)
+Messagerie de base (tâches 10, 11, 12, 13)
+Notifications Push (tâche 17)
+Suppression de messages (tâche 21)
+File d'attente pour messages hors ligne (tâche 30)
+
+
+Bloc 3: Fonctionnalités avancées et expérience utilisateur (~33h)
+Ce bloc enrichit l'application avec des fonctionnalités complémentaires :
+
+Messagerie de groupe (tâches 14, 15)
+Gestion des médias (tâches 18, 19, 20)
+Blocage de contacts (tâche 22)
+Fonctionnalités avancées (tâches 23, 24, 25, 31)
+Interface et optimisation (tâches 26, 28, 29)

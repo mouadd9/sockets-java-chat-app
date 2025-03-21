@@ -27,6 +27,7 @@
                 <HBox spacing="5">
                     <TextField fx:id="newContactField" promptText="Email du contact" HBox.hgrow="ALWAYS"/>
                     <Button text="+" onAction="#handleAddContact"/>
+                    <Button text="-" onAction="#handleRemoveContact"/>
                 </HBox>
             </VBox>
             

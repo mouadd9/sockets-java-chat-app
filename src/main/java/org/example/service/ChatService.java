@@ -8,12 +8,13 @@ import java.net.ConnectException;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 import org.example.dto.Credentials;
 import org.example.model.Message;
+import org.example.model.User;
 import org.example.repository.JsonMessageRepository;
-import org.example.repository.JsonUserRepository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -29,6 +30,7 @@ public class ChatService {
     private final ObjectMapper objectMapper;
     private Consumer<Message> messageConsumer;
     private final JsonMessageRepository messageRepository;
+    private final UserService userService;
 
     private Thread listenerThread;
     private boolean isRunning = false;
@@ -36,6 +38,7 @@ public class ChatService {
     public ChatService() {
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         this.messageRepository = new JsonMessageRepository();
+        this.userService = new UserService();
     }
 
     public boolean connect(final Credentials credentials) throws IOException {
@@ -114,26 +117,16 @@ public class ChatService {
     }
 
     public List<String> getContacts(final String userEmail) throws IOException {
-        // Pour cet exemple, on utilisera directement le JsonUserRepository
-        final JsonUserRepository userRepo = new JsonUserRepository();
-        final List<String> contactEmails = new ArrayList<>();
-
-        userRepo.loadUsers().forEach(user -> {
-            // Pour simplifier, on considère que tous les autres utilisateurs sont des
-            // contacts
-            if (!user.getEmail().equals(userEmail)) {
-                contactEmails.add(user.getEmail());
-            }
-        });
-
-        return contactEmails;
+        final Optional<User> optionalUser = userService.getUserByEmail(userEmail);
+        return optionalUser.map(User::getContacts).orElse(new ArrayList<>());
     }
 
     public boolean addContact(final String userEmail, final String contactEmail) throws IOException {
-        // Cette fonctionnalité nécessiterait d'étendre l'API du serveur
-        // Pour l'instant, on simule un succès si le contact existe
-        final JsonUserRepository userRepo = new JsonUserRepository();
-        return userRepo.findByEmail(contactEmail).isPresent();
+        return userService.addContact(userEmail, contactEmail);
+    }
+
+    public boolean removeContact(final String userEmail, final String contactEmail) throws IOException {
+        return userService.removeContact(userEmail, contactEmail);
     }
 
     public List<Message> getConversation(final String user1Email, final String user2Email) throws IOException {

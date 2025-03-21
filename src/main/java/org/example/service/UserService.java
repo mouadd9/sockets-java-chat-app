@@ -69,31 +69,44 @@ public class UserService {
     }
 
     /**
-     * Ajoute un contact à un utilisateur
+     * Ajoute un contact à un utilisateur.
+     * Vérifie que l'utilisateur et le contact existent, que l'utilisateur n'ajoute pas lui-même
+     * et qu'il n'y a pas déjà de doublon.
      */
     public boolean addContact(final String userEmail, final String contactEmail) throws IOException {
-        final Optional<User> userOpt = userRepository.findByEmail(userEmail);
-        final Optional<User> contactOpt = userRepository.findByEmail(contactEmail);
+        // Vérification si l'utilisateur tente de s'ajouter lui-même
+        if (userEmail.equals(contactEmail)) {
+            throw new IllegalArgumentException("Vous ne pouvez pas vous ajouter vous-même comme contact");
+        }
         
-        if (userOpt.isPresent() && contactOpt.isPresent()) {
+        // Vérification de l'existence du contact
+        final Optional<User> contactOpt = userRepository.findByEmail(contactEmail);
+        if (contactOpt.isEmpty()) {
+            throw new IllegalArgumentException("Cet utilisateur n'existe pas");
+        }
+        
+        final Optional<User> userOpt = userRepository.findByEmail(userEmail);
+        if (userOpt.isPresent()) {
             final User user = userOpt.get();
+            // Vérification si le contact est déjà présent
+            if (user.getContacts().contains(contactEmail)) {
+                throw new IllegalArgumentException("Ce contact est déjà dans votre liste");
+            }
             user.addContact(contactEmail);
             userRepository.saveUser(user);
             return true;
         }
-        return false;
+        throw new IllegalArgumentException("Une erreur est survenue lors de l'ajout du contact");
     }
-    
+
     /**
-     * Supprime un contact d'un utilisateur
+     * Supprime un contact de l'utilisateur.
      */
     public boolean removeContact(final String userEmail, final String contactEmail) throws IOException {
         final Optional<User> userOpt = userRepository.findByEmail(userEmail);
-        
         if (userOpt.isPresent()) {
             final User user = userOpt.get();
-            final boolean removed = user.removeContact(contactEmail);
-            if (removed) {
+            if (user.removeContact(contactEmail)) {
                 userRepository.saveUser(user);
                 return true;
             }
