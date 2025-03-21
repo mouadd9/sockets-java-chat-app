@@ -138,12 +138,12 @@ public class ChatController {
             final boolean removed = chatService.removeContact(userEmail, selectedContact);
             if (removed) {
                 contacts.remove(selectedContact);
-                newContactField.clear();
-                setStatus("Contact supprimé: " + selectedContact);
-                // Optionnel : nettoyer la conversation affichée
-                if (selectedContact.equals(contactListView.getSelectionModel().getSelectedItem())) {
-                    chatHistoryContainer.getChildren().clear();
-                }
+                // Nettoyer la conversation affichée
+                chatHistoryContainer.getChildren().clear();
+                // Supprimer la conversation persistée localement
+                localRepo.removeConversation(userEmail, selectedContact);
+                setStatus("Contact et conversation supprimés: " + selectedContact);
+                selectedContact = null;
             } else {
                 setStatus("La suppression du contact a échoué");
             }
