@@ -25,22 +25,26 @@ public class MessageBroker {
     }
 
     private MessageBroker() {
+        // a broker has a map of email and MessageQueue
+        // each message Queue is for a User
         this.userQueues = new ConcurrentHashMap<>();
         this.messageRepo = new JsonMessageRepository();
-        loadPendingMessages();
     }
 
-    // Subscription
+    // when a user authenticats this function registers the User so he can get queued messages that were sent to him when he was offline, and for further messaging before when he is online 
+    // we solve this by introducing queues, each user should be registered in the broker in order to get his queued messages
     public void registerListener(final String email, final ClientHandler listener) {
-
+        // we first need to create a queue for the authenticated user, and then register the user in the broker using his email
         final MessageQueue queue = getOrCreateQueue(email);
+        // then after creatingn and registering the queue in the broker we will set the client handler in the queue so we can send to the client his queued messages
         queue.setListener(listener);
-
-        queue.clearQueue();
-        queue.reloadPersistedMessages();
+        // this will load Qeued messages for this user from the database to the user messages queue
+        queue.loadPersistedMessages();
+        // and this will deliver them via the Client Handler
         queue.deliverPendingMessages();
     }
 
+    // this is called when the user disconnects, this removes the user from the broker and clears its queue
     public void unregisterListener(final String email) {
         final MessageQueue queue = userQueues.remove(email);
         if (queue != null) {
@@ -80,18 +84,10 @@ public class MessageBroker {
         }
     }
 
+    // this function returns the Message Queue of a User  
     private MessageQueue getOrCreateQueue(final String email) {
+        // this is a key element here, the idea is, if the message queue exists in the map we return it, if not we create it.
         return userQueues.computeIfAbsent(email, MessageQueue::new);
-    }
-
-    private void loadPendingMessages() {
-        try {
-            messageRepo.loadMessages().stream()
-                    .filter(m -> "QUEUED".equals(m.getStatus()))
-                    .forEach(m -> getOrCreateQueue(m.getReceiverEmail()).addMessageToQueue(m));
-        } catch (final IOException e) {
-            System.err.println("Error loading pending messages: " + e.getMessage());
-        }
     }
 
     private class MessageQueue {
@@ -116,7 +112,8 @@ public class MessageBroker {
             messages.clear();
         }
 
-        synchronized void reloadPersistedMessages() {
+        // this function loads all Queued messages from the database into the message queues of the reveicers (for each Queued message we check retrieve the Queue of the receiver we then add the Queued message to it)
+        synchronized void loadPersistedMessages() {
             try {
                 messageRepo.loadMessages().stream()
                         .filter(m -> "QUEUED".equals(m.getStatus()) &&

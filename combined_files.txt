@@ -1,0 +1,1926 @@
+// File: src/main/java/org/example/broker/MessageBroker.java
+package org.example.broker;
+
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
+
+import org.example.model.Message;
+import org.example.repository.JsonMessageRepository;
+import org.example.server.ClientHandler;
+
+public class MessageBroker {
+    private static MessageBroker instance;
+    private final Map<String, MessageQueue> userQueues;
+    private final JsonMessageRepository messageRepo;
+
+    public static synchronized MessageBroker getInstance() {
+        if (instance == null) {
+            instance = new MessageBroker();
+        }
+        return instance;
+    }
+
+    private MessageBroker() {
+        this.userQueues = new ConcurrentHashMap<>();
+        this.messageRepo = new JsonMessageRepository();
+        loadPendingMessages();
+    }
+
+    // Subscription
+    public void registerListener(final String email, final ClientHandler listener) {
+
+        final MessageQueue queue = getOrCreateQueue(email);
+        queue.setListener(listener);
+
+        queue.clearQueue();
+        queue.reloadPersistedMessages();
+        queue.deliverPendingMessages();
+    }
+
+    public void unregisterListener(final String email) {
+        final MessageQueue queue = userQueues.remove(email);
+        if (queue != null) {
+            queue.setListener(null);
+            queue.clearQueue();
+        }
+    }
+
+    public void sendMessage(final Message message) {
+        initializeMessage(message);
+
+        final MessageQueue queue = userQueues.get(message.getReceiverEmail());
+        if (queue != null && queue.tryDeliver(message)) {
+            message.setStatus("DELIVERED");
+        } else {
+            PersistMessage(message);
+        }
+    }
+
+    private void initializeMessage(final Message message) {
+        if (message.getId() == null) {
+            message.setId(UUID.randomUUID().toString());
+        }
+        if (message.getTimestamp() == null) {
+            message.setTimestamp(LocalDateTime.now());
+        }
+        message.setStatus("PENDING");
+    }
+
+    private void PersistMessage(final Message message) {
+        message.setStatus("QUEUED");
+        try {
+            messageRepo.saveMessage(message);
+            // getOrCreateQueue(message.getReceiverEmail()).addMessageToQueue(message);
+        } catch (final IOException e) {
+            System.err.println("Failed to queue message: " + e.getMessage());
+        }
+    }
+
+    private MessageQueue getOrCreateQueue(final String email) {
+        return userQueues.computeIfAbsent(email, MessageQueue::new);
+    }
+
+    private void loadPendingMessages() {
+        try {
+            messageRepo.loadMessages().stream()
+                    .filter(m -> "QUEUED".equals(m.getStatus()))
+                    .forEach(m -> getOrCreateQueue(m.getReceiverEmail()).addMessageToQueue(m));
+        } catch (final IOException e) {
+            System.err.println("Error loading pending messages: " + e.getMessage());
+        }
+    }
+
+    private class MessageQueue {
+        private final String userEmail;
+        private final BlockingQueue<Message> messages;
+        private ClientHandler listener;
+
+        MessageQueue(final String userEmail) {
+            this.userEmail = userEmail;
+            this.messages = new LinkedBlockingQueue<>();
+        }
+
+        synchronized void setListener(final ClientHandler listener) {
+            this.listener = listener;
+        }
+
+        void addMessageToQueue(final Message message) {
+            messages.offer(message);
+        }
+
+        synchronized void clearQueue() {
+            messages.clear();
+        }
+
+        synchronized void reloadPersistedMessages() {
+            try {
+                messageRepo.loadMessages().stream()
+                        .filter(m -> "QUEUED".equals(m.getStatus()) &&
+                                userEmail.equals(m.getReceiverEmail()))
+                        .forEach(this::addMessageToQueue);
+            } catch (final IOException e) {
+                System.err.println("Error reloading persisted messages for " + userEmail + ": " + e.getMessage());
+            }
+        }
+
+        boolean tryDeliver(final Message message) {
+            if (listener != null) {
+                try {
+                    listener.onMessageReceived(message);
+                    return true;
+                } catch (final IOException e) {
+                    System.err.println("Delivery failed for " + message.getId());
+                }
+            }
+            return false;
+        }
+
+        void deliverPendingMessages() {
+            while (!messages.isEmpty()) {
+                final Message message = messages.peek();
+                if (tryDeliver(message)) {
+                    try {
+                        messages.poll();
+                    } catch (final Exception e) {
+                        System.err.println("Delivery failed, keeping message in queue");
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+}
+
+
+// File: src/main/java/org/example/client/gui/ChatClientApplication.java
+package org.example.client.gui;
+
+import java.io.IOException;
+
+import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.stage.Stage;
+
+public class ChatClientApplication extends Application {
+
+    @Override
+    public void start(final Stage primaryStage) {
+        try {
+            // Vérification que les ressources FXML peuvent être chargées
+            final FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/login.fxml"));
+            final Parent root = loader.load();
+            
+            primaryStage.setTitle("Chat Application");
+            primaryStage.setScene(new Scene(root, 600, 400));
+            primaryStage.setMinWidth(600);
+            primaryStage.setMinHeight(400);
+            primaryStage.show();
+        } catch (final IOException e) {
+            showErrorAndExit("Erreur de chargement FXML", 
+                    "Impossible de charger l'interface utilisateur: " + e.getMessage());
+        } catch (final Exception e) {
+            showErrorAndExit("Erreur d'initialisation", 
+                    "L'application n'a pas pu démarrer correctement: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Affiche une erreur et quitte l'application
+     */
+    private void showErrorAndExit(final String title, final String message) {
+        final Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle(title);
+        alert.setHeaderText("Erreur critique");
+        alert.setContentText(message);
+        alert.showAndWait();
+        Platform.exit();
+    }
+
+    public static void main(final String[] args) {
+        try {
+            launch(args);
+        } catch (final Exception e) {
+            System.err.println("Erreur lors du lancement de l'application JavaFX:");
+            System.err.println("Cette erreur peut être due à l'absence de modules JavaFX.");
+            System.err.println("Veuillez lancer l'application avec les arguments VM suivants:");
+            System.err.println("--module-path <chemin/vers/javafx-sdk>/lib --add-modules javafx.controls,javafx.fxml");
+            e.printStackTrace();
+        }
+    }
+    
+    @Override
+    public void stop() {
+        // Nettoyage des ressources lors de la fermeture de l'application
+        System.out.println("Application fermée");
+    }
+}
+
+
+
+// File: src/main/java/org/example/client/gui/controllers/ChatController.java
+package org.example.client.gui.controllers;
+
+import java.io.IOException;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+
+import org.example.client.repository.JsonLocalMessageRepository;
+import org.example.model.Message;
+import org.example.service.ChatService;
+
+import javafx.application.Platform;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.event.ActionEvent;
+import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.scene.control.Label;
+import javafx.scene.control.ListView;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.stage.Stage;
+
+public class ChatController {
+    @FXML
+    private Label userEmailLabel;
+
+    @FXML
+    private ListView<String> contactListView;
+
+    @FXML
+    private TextField newContactField;
+
+    @FXML
+    private VBox chatHistoryContainer;
+
+    @FXML
+    private TextField messageField;
+
+    @FXML
+    private Label statusLabel;
+
+    private ChatService chatService;
+    private String userEmail;
+    private String selectedContact;
+
+    private final ObservableList<String> contacts = FXCollections.observableArrayList();
+    private static final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
+    private final JsonLocalMessageRepository localRepo = new JsonLocalMessageRepository();
+
+    @FXML
+    public void initialize() {
+        contactListView.setItems(contacts);
+
+        // Configurer le clic sur un contact
+        contactListView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                selectedContact = newVal;
+                loadConversation(selectedContact);
+                setStatus("Conversation chargée avec " + selectedContact);
+            }
+        });
+
+        // Permettre d'envoyer un message avec la touche Entrée
+        messageField.setOnAction(this::handleSendMessage);
+    }
+
+    // this function is called when we first create and cnofigure the controller
+    // it sets dependencies, and somehow gets incoming messages that were received when authenticating
+    public void initData(final ChatService chatService, final String userEmail) {
+        this.chatService = chatService;
+        this.userEmail = userEmail;
+        this.userEmailLabel.setText(userEmail);
+
+        // Configurer le Consumer pour recevoir les messages
+        chatService.setMessageConsumer(this::handleIncomingMessage);
+
+        // Charger les contacts
+        loadContacts();
+    }
+
+    @FXML
+    private void handleSendMessage(final ActionEvent event) {
+        final String content = messageField.getText().trim();
+
+        if (content.isEmpty() || selectedContact == null) {
+            return;
+        }
+
+        try {
+            final Message message = new Message(userEmail, selectedContact, content);
+            chatService.sendMessage(message);
+            messageField.clear();
+
+            // Ajouter le message à la conversation
+            addMessageToChat(message);
+            setStatus("Message envoyé");
+            localRepo.addLocalMessage(userEmail, message);
+        } catch (final IOException e) {
+            setStatus("Erreur lors de l'envoi du message: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void handleAddContact() {
+        final String email = newContactField.getText().trim();
+
+        if (email.isEmpty()) {
+            setStatus("Veuillez saisir un email");
+            return;
+        }
+
+        try {
+            final boolean added = chatService.addContact(userEmail, email);
+            if (added) {
+                contacts.add(email);
+                newContactField.clear();
+                setStatus("Contact ajouté: " + email);
+            }
+        } catch (final IllegalArgumentException e) {
+            // Afficher le message d'erreur spécifique
+            setStatus("Erreur: " + e.getMessage());
+        } catch (final IOException e) {
+            setStatus("Erreur de connexion: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void handleRemoveContact() {
+        if (selectedContact == null) {
+            setStatus("Aucun contact sélectionné pour la suppression");
+            return;
+        }
+        try {
+            final boolean removed = chatService.removeContact(userEmail, selectedContact);
+            if (removed) {
+                contacts.remove(selectedContact);
+                // Nettoyer la conversation affichée
+                chatHistoryContainer.getChildren().clear();
+                // Supprimer la conversation persistée localement
+                localRepo.removeConversation(userEmail, selectedContact);
+                setStatus("Contact et conversation supprimés: " + selectedContact);
+                selectedContact = null;
+            } else {
+                setStatus("La suppression du contact a échoué");
+            }
+        } catch (final IOException e) {
+            setStatus("Erreur: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void handleLogout() {
+        try {
+            chatService.disconnect();
+
+            // Revenir à l'écran de connexion
+            final FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/login.fxml"));
+            final Parent loginView = loader.load();
+
+            final Stage stage = (Stage) userEmailLabel.getScene().getWindow();
+            stage.setTitle("Chat Application");
+            stage.setScene(new Scene(loginView, 600, 400));
+            stage.centerOnScreen();
+        } catch (final IOException e) {
+            setStatus("Erreur lors de la déconnexion: " + e.getMessage());
+        }
+    }
+
+    private void loadContacts() {
+        try {
+            final List<String> contactList = chatService.getContacts(userEmail);
+            Platform.runLater(() -> {
+                contacts.clear();
+                contacts.addAll(contactList);
+
+                // Sélectionner automatiquement le premier contact
+                if (!contacts.isEmpty()) {
+                    contactListView.getSelectionModel().select(0);
+                }
+            });
+        } catch (final IOException e) {
+            setStatus("Erreur lors du chargement des contacts: " + e.getMessage());
+        }
+    }
+
+    private void loadConversation(final String contactEmail) {
+        chatHistoryContainer.getChildren().clear();
+
+        // Charger l'historique local
+        try {
+            final List<Message> localMessages = localRepo.loadLocalMessages(userEmail);
+            // Filtrer uniquement les messages correspondant à la conversation
+            localMessages.stream()
+                    .filter(m -> (m.getSenderEmail().equals(userEmail) && m.getReceiverEmail().equals(contactEmail)) ||
+                            (m.getSenderEmail().equals(contactEmail) && m.getReceiverEmail().equals(userEmail)))
+                    .forEach(this::addMessageToChat);
+        } catch (final IOException e) {
+            setStatus("Erreur lors du chargement de l'historique local : " + e.getMessage());
+        }
+
+        // Optionnel : vous pouvez également synchroniser avec le serveur pour mettre à
+        // jour l'historique
+    }
+
+    private void handleIncomingMessage(final Message message) {
+        Platform.runLater(() -> {
+            // Si aucun contact n'est sélectionné, utiliser l'autre partie du message
+            // pour définir la conversation courante.
+            if (selectedContact == null) {
+                selectedContact = message.getSenderEmail().equals(userEmail)
+                        ? message.getReceiverEmail()
+                        : message.getSenderEmail();
+                contactListView.getSelectionModel().select(selectedContact);
+                setStatus("Conversation chargée avec " + selectedContact);
+            }
+
+            // Afficher le message s'il appartient à la conversation active
+            if (selectedContact != null &&
+                    (message.getSenderEmail().equals(selectedContact) ||
+                            message.getReceiverEmail().equals(selectedContact))) {
+                addMessageToChat(message);
+            }
+
+            // Enregistrer localement le message pour avoir un historique hors ligne
+            try {
+                localRepo.addLocalMessage(userEmail, message);
+            } catch (final IOException e) {
+                System.err.println("Erreur de sauvegarde locale : " + e.getMessage());
+            }
+
+            // Mise à jour des contacts si nécessaire
+            final String otherUser = message.getSenderEmail().equals(userEmail) ? message.getReceiverEmail()
+                    : message.getSenderEmail();
+            if (!contacts.contains(otherUser)) {
+                contacts.add(otherUser);
+            }
+
+            setStatus("Nouveau message reçu");
+
+            // Envoyer l'accusé de réception
+            try {
+                chatService.acknowledgeMessage(message.getId());
+            } catch (final IOException e) {
+                System.err.println("Failed to acknowledge message: " + e.getMessage());
+            }
+        });
+    }
+
+    private void addMessageToChat(final Message message) {
+        final boolean isMine = message.getSenderEmail().equals(userEmail);
+
+        // Créer une boîte pour le message
+        final HBox messageBox = new HBox();
+        messageBox.setMaxWidth(chatHistoryContainer.getWidth() * 0.8);
+        messageBox.setPadding(new Insets(5));
+        messageBox.setAlignment(isMine ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
+
+        // Contenu du message
+        final VBox messageContent = new VBox();
+        messageContent.setMaxWidth(chatHistoryContainer.getWidth() * 0.7);
+        messageContent.setPadding(new Insets(10));
+        messageContent.setStyle("-fx-background-color: " + (isMine ? "#DCF8C6" : "#E1E1E1") + ";" +
+                "-fx-background-radius: 10;");
+
+        final Label contentLabel = new Label(message.getContent());
+        contentLabel.setWrapText(true);
+
+        // Afficher l'heure et le status du message
+        final String statusDisplay = message.getTimestamp().format(timeFormatter)
+                + " - " + (message.getStatus() != null ? message.getStatus() : "N/A");
+        final Label statusLabel = new Label(statusDisplay);
+        statusLabel.setTextFill(Color.GRAY);
+
+        messageContent.getChildren().addAll(contentLabel, statusLabel);
+        messageBox.getChildren().add(messageContent);
+
+        // Ajouter le message à l'historique
+        Platform.runLater(() -> {
+            chatHistoryContainer.getChildren().add(messageBox);
+            // Faire défiler vers le bas pour voir le nouveau message
+            chatHistoryContainer.heightProperty().addListener(observable -> chatHistoryContainer.layout());
+        });
+    }
+
+    private void setStatus(final String status) {
+        Platform.runLater(() -> statusLabel.setText(status));
+    }
+}
+
+
+// File: src/main/java/org/example/client/gui/controllers/LoginController.java
+package org.example.client.gui.controllers;
+
+import java.io.IOException;
+
+import org.example.dto.Credentials;
+import org.example.service.ChatService;
+
+import javafx.application.Platform;
+import javafx.event.ActionEvent;
+import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.PasswordField;
+import javafx.scene.control.TextField;
+import javafx.stage.Stage;
+
+public class LoginController {
+
+    @FXML
+    private TextField emailField;
+    
+    @FXML
+    private PasswordField passwordField;
+    
+    @FXML
+    private Button loginButton;
+    
+    private final ChatService chatService;
+    
+    public LoginController() {
+        this.chatService = new ChatService();
+    }
+    
+    @FXML
+    public void initialize() {
+        // Activer le bouton de connexion seulement si des valeurs sont entrées
+        loginButton.disableProperty().bind(
+            emailField.textProperty().isEmpty().or(
+            passwordField.textProperty().isEmpty())
+        );
+    }
+
+    // this function takes in the login event from the view extracts credentials and calls connect from chat service
+    @FXML
+    private void handleLogin(final ActionEvent event) {
+        // here we get credentials
+        final String email = emailField.getText().trim();
+        final String password = passwordField.getText();
+
+        // Débinder la propriété disable avant de la modifier
+        loginButton.disableProperty().unbind();
+        loginButton.setDisable(true); // Désactiver le bouton
+
+        new Thread(() -> {
+            try {
+                final Credentials credentials = new Credentials(email, password);
+                // here we call connect() in chat service
+                // connect does the following :
+                    // - establishes connection with server socket (a client socket is created in server side for further communication)
+                    // - it send credentials using the output stream and waits for response the server creates a client handler and checks authenticates client
+                    // - if authenticated we run code in a thread (to load messages sent to the client offline using loadMessages() ), and we return "true".
+                final boolean success = chatService.connect(credentials);
+                
+                Platform.runLater(() -> {
+                    if (success) {
+                        try {
+                            // if authentication is successful we open the chat view
+                            openChatWindow(email);
+                        } catch (final IOException e) {
+                            showError("Erreur d'interface", "Impossible d'ouvrir la fenêtre de chat: " + e.getMessage());
+                            rebindLoginButton();
+                        }
+                    } else {
+                        showError("Échec de connexion", "Email ou mot de passe incorrect");
+                        rebindLoginButton();
+                    }
+                });
+            } catch (final IOException e) {
+                Platform.runLater(() -> {
+                    showError("Erreur de connexion", "Impossible de se connecter au serveur: " + e.getMessage());
+                    rebindLoginButton();
+                });
+            }
+        }).start();
+    }
+    
+    /**
+     * Rétablit le binding du bouton de login
+     */
+    private void rebindLoginButton() {
+        loginButton.disableProperty().unbind(); // S'assurer qu'il n'y a pas de binding actif
+        loginButton.setDisable(false); // Réactiver le bouton
+        // Rebinder le bouton avec la condition initiale
+        loginButton.disableProperty().bind(
+            emailField.textProperty().isEmpty().or(
+            passwordField.textProperty().isEmpty())
+        );
+    }
+
+    // this function loads chat.fxml and configures it with a controller chatController
+    private void openChatWindow(final String userEmail) throws IOException {
+        // Charger la vue de chat
+        final FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/chat.fxml"));
+        final Parent chatView = loader.load();
+        
+        // Configurer le contrôleur de chat
+        final ChatController chatController = loader.getController();
+        chatController.initData(chatService, userEmail);
+        
+        // Créer et afficher la nouvelle scène
+        final Scene chatScene = new Scene(chatView, 800, 600);
+        final Stage currentStage = (Stage) loginButton.getScene().getWindow();
+        
+        currentStage.setTitle("Chat - " + userEmail);
+        currentStage.setScene(chatScene);
+        currentStage.setMinWidth(800);
+        currentStage.setMinHeight(600);
+        currentStage.centerOnScreen();
+    }
+    
+    private void showError(final String title, final String message) {
+        final Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+}
+
+
+
+// File: src/main/java/org/example/client/gui/Launcher.java
+package org.example.client.gui;
+
+/**
+ * Classe de lancement pour l'application JavaFX.
+ * Cette classe sert de point d'entrée principal pour éviter les problèmes
+ * de modules JavaFX lors de l'exécution à partir d'un JAR.
+ */
+public class Launcher {
+    /**
+     * Point d'entrée principal de l'application.
+     * @param args Arguments de ligne de commande
+     */
+    public static void main(final String[] args) {
+        // Lance l'application JavaFX
+        ChatClientApplication.main(args);
+    }
+}
+
+
+
+// File: src/main/java/org/example/client/repository/JsonLocalMessageRepository.java
+package org.example.client.repository;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.example.model.Message;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.type.CollectionType;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
+/**
+ * Classe de persistance locale pour l'historique des messages d'un utilisateur.
+ * L'historique est stocké sous forme de fichier JSON dans le dossier "src/main/client_data".
+ */
+public class JsonLocalMessageRepository {
+    // Utilisation du répertoire de projet pour stocker les données clients
+    private static final String LOCAL_FOLDER = System.getProperty("user.dir")
+            + File.separator + "src" + File.separator + "main" + File.separator + "client_data";
+    private final ObjectMapper objectMapper;
+
+    public JsonLocalMessageRepository() {
+        this.objectMapper = new ObjectMapper();
+        this.objectMapper.registerModule(new JavaTimeModule());
+        this.objectMapper.configure(SerializationFeature.INDENT_OUTPUT, true);
+        ensureLocalFolderExists();
+    }
+
+    private void ensureLocalFolderExists() {
+        final Path folderPath = Paths.get(LOCAL_FOLDER);
+        if (!Files.exists(folderPath)) {
+            try {
+                Files.createDirectories(folderPath);
+            } catch (final IOException e) {
+                System.err.println("Erreur lors de la création du dossier client_data : " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Renvoie le chemin complet du fichier de l'utilisateur.
+     */
+    private String getUserFilePath(final String userEmail) {
+        // Remplacer les caractères spéciaux pour créer un nom de fichier valide
+        final String fileName = userEmail.replaceAll("[^a-zA-Z0-9]", "_") + "_messages.json";
+        return LOCAL_FOLDER + File.separator + fileName;
+    }
+
+    /**
+     * Charge la liste des messages locaux pour l'utilisateur.
+     */
+    public List<Message> loadLocalMessages(final String userEmail) throws IOException {
+        final String filePath = getUserFilePath(userEmail);
+        final File file = new File(filePath);
+        if (!file.exists()) {
+            return new ArrayList<>();
+        }
+        final CollectionType listType = objectMapper.getTypeFactory()
+                .constructCollectionType(ArrayList.class, Message.class);
+        return objectMapper.readValue(file, listType);
+    }
+
+    /**
+     * Enregistre la liste des messages locaux pour l'utilisateur.
+     */
+    public void saveLocalMessages(final String userEmail, final List<Message> messages) throws IOException {
+        final String filePath = getUserFilePath(userEmail);
+        objectMapper.writeValue(new File(filePath), messages);
+    }
+
+    /**
+     * Ajoute un nouveau message dans l'historique local pour l'utilisateur.
+     */
+    public void addLocalMessage(final String userEmail, final Message message) throws IOException {
+        final List<Message> messages = loadLocalMessages(userEmail);
+        messages.add(message);
+        saveLocalMessages(userEmail, messages);
+    }
+
+    /**
+     * Supprime un message de l'historique local pour l'utilisateur.
+     */
+    public void removeConversation(final String userEmail, final String contactEmail) throws IOException {
+        final List<Message> messages = loadLocalMessages(userEmail);
+        messages.removeIf(m ->
+                (m.getSenderEmail().equals(userEmail) && m.getReceiverEmail().equals(contactEmail))
+             || (m.getSenderEmail().equals(contactEmail) && m.getReceiverEmail().equals(userEmail)));
+        saveLocalMessages(userEmail, messages);
+    }
+}
+
+
+// File: src/main/java/org/example/dto/Credentials.java
+package org.example.dto;
+
+/**
+ * Classe DTO pour les informations d'authentification.
+ */
+public class Credentials {
+    private String email;
+    private String password;
+    
+    // Constructeur par défaut requis pour Jackson
+    public Credentials() {
+    }
+    
+    public Credentials(final String email, final String password) {
+        this.email = email;
+        this.password = password;
+    }
+    
+    // Getters et Setters
+    public String getEmail() {
+        return email;
+    }
+    
+    public void setEmail(final String email) {
+        this.email = email;
+    }
+    
+    public String getPassword() {
+        return password;
+    }
+    
+    public void setPassword(final String password) {
+        this.password = password;
+    }
+}
+
+
+// File: src/main/java/org/example/model/Message.java
+package org.example.model;
+
+import java.time.LocalDateTime;
+import java.util.Objects;
+import java.util.UUID;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+public class Message {
+    private String id; // PK
+    private String senderEmail; // FK
+    private String receiverEmail; // FK
+    private String content;
+    private LocalDateTime timestamp; // Creation date !!
+
+    @JsonProperty("read")
+    private boolean isRead;
+    private String type; // "CHAT", "LOGOUT", etc.
+    private String status; // PENDING, QUEUED, DELIVERED, ACKNOWLEDGED, EXPIRED
+
+    // Constructeur par défaut pour Jackson
+    public Message() {
+        this.id = UUID.randomUUID().toString();
+        this.timestamp = LocalDateTime.now();
+        this.isRead = false;
+        this.status = "PENDING";
+    }
+
+    public Message(final String senderEmail, final String receiverEmail, final String content) {
+        this();
+        this.senderEmail = senderEmail;
+        this.receiverEmail = receiverEmail;
+        this.content = content;
+        this.type = "CHAT";
+    }
+
+    // Getters and Setters
+    public String getId() {
+        return id;
+    }
+
+    public void setId(final String id) {
+        this.id = id;
+    }
+
+    public String getSenderEmail() {
+        return senderEmail;
+    }
+
+    public void setSenderEmail(final String senderEmail) {
+        this.senderEmail = senderEmail;
+    }
+
+    public String getReceiverEmail() {
+        return receiverEmail;
+    }
+
+    public void setReceiverEmail(final String receiverEmail) {
+        this.receiverEmail = receiverEmail;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(final String content) {
+        this.content = content;
+    }
+
+    public LocalDateTime getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(final LocalDateTime timestamp) {
+        this.timestamp = timestamp;
+    }
+
+    public boolean isRead() {
+        return isRead;
+    }
+
+    public void setRead(final boolean read) {
+        this.isRead = read;
+    }
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(final String type) {
+        this.type = type;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(final String status) {
+        this.status = status;
+    }
+
+    @Override
+    public String toString() {
+        return "Message{" +
+                "id='" + id + '\'' +
+                ", senderEmail='" + senderEmail + '\'' +
+                ", receiverEmail='" + receiverEmail + '\'' +
+                ", content='"
+                + (content != null ? content.substring(0, Math.min(content.length(), 20)) + "..." : "null") + '\'' +
+                ", timestamp=" + timestamp +
+                ", isRead=" + isRead +
+                ", type='" + type + '\'' +
+                ", status='" + status + '\'' +
+                '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (!(o instanceof Message))
+            return false;
+        Message message = (Message) o;
+        return Objects.equals(id, message.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+}
+
+
+
+// File: src/main/java/org/example/model/User.java
+package org.example.model;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+public class User {
+    private String email;        // PK
+    private String displayName;  // user name for display
+    private String password;     // hashed password
+    
+    @JsonProperty("online")
+    private boolean isOnline;    // user online status
+    
+    @JsonProperty("contactEmails")
+    private List<String> contacts; // sera mappé depuis "contactEmails" du JSON
+    
+    // Constructeur par défaut pour Jackson
+    public User() {
+        this.isOnline = false;
+        this.contacts = new ArrayList<>();
+    }
+    
+    public User(final String email, final String displayName, final String password) {
+        this();
+        this.email = email;
+        this.displayName = displayName;
+        this.password = password;
+    }
+
+    // Getters and Setters
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(final String email) {
+        this.email = email;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
+
+    public void setDisplayName(final String displayName) {
+        this.displayName = displayName;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(final String password) {
+        this.password = password;
+    }
+
+    public boolean isOnline() {
+        return isOnline;
+    }
+
+    public void setOnline(final boolean online) {
+        isOnline = online;
+    }
+
+    public List<String> getContacts() {
+        return contacts;
+    }
+
+    public void setContacts(final List<String> contacts) {
+        this.contacts = contacts;
+    }
+    
+    public void addContact(final String contactEmail) {
+        if (!contacts.contains(contactEmail)) {
+            contacts.add(contactEmail);
+        }
+    }
+    
+    public boolean removeContact(final String contactEmail) {
+        return contacts.remove(contactEmail);
+    }
+
+    @Override
+    public String toString() {
+        return "User{" +
+                "email='" + email + '\'' +
+                ", displayName='" + displayName + '\'' +
+                ", isOnline=" + isOnline +
+                ", contactsCount=" + contacts.size() +
+                '}';
+    }
+}
+
+
+
+// File: src/main/java/org/example/repository/JsonMessageRepository.java
+package org.example.repository;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.example.model.Message;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.type.CollectionType;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
+// this class will provide methods that will do the following : 
+// - a method to save a list of messages objects to a json file (messages.json), by writing to the json file
+// - a method to load all messages from the JSON file (messages.json) and return them as a list of messages objects 
+public class JsonMessageRepository {
+    // location of the messages.json
+    private static final String MESSAGES_FILE = "src/main/data/messages.json";
+    private final ObjectMapper objectMapper;
+    private final File messagesFile;
+
+    // constructor that creates an instance of ObjectMapper()
+    public JsonMessageRepository() {
+        // object Mapper is a class provided by the jackson library it serializes and
+        // deserialzes JSON strings;
+        this.objectMapper = new ObjectMapper();
+        // Register JavaTimeModule to handle LocalDateTime serialization
+        this.objectMapper.registerModule(new JavaTimeModule());
+        // this provides the path for the messages.json file
+        this.messagesFile = new File(MESSAGES_FILE);
+    }
+
+    // this method uses a jackson method used to serialize any Java value as JSON
+    // output, written to File provided.
+    public void saveMessages(final List<Message> messages) throws IOException {
+        // inputs : a list of messages , a file path
+        // effect : serialization and persistance into the provided file path
+        objectMapper.writeValue(messagesFile, messages);
+    }
+
+    // this method will retrieve data from the JSON file and return a list of
+    // messages
+    // the issue here is, jackson do not know to what type of objects the list will
+    // have
+    public List<Message> loadMessages() throws IOException {
+        if (!messagesFile.exists()) {
+            throw new IOException("messages.json file not found in data directory");
+        }
+        // this is the key line
+        // here we tell jackson that we need an ArrayList containing Message objects
+        // !!!!!!!
+        // we are telling jackson that the json file is an array (ArrayList) and this
+        // array will have objects of type (Message)
+        final CollectionType listType = objectMapper.getTypeFactory()
+                .constructCollectionType(ArrayList.class, Message.class);
+        // this readVale() method needs two informations to function , first the path of
+        // the JSON file then an information regarding the types
+        // that jackson should use to desirialize
+        // its like we are telling jackson to Take this JSON array (messagesFile) and
+        // create an ArrayList of Message objects from it.
+        final ArrayList<Message> messages = objectMapper.readValue(messagesFile, listType);
+        // then we return the messages array
+        return messages;
+    }
+
+    public void saveMessage(final Message message) throws IOException {
+        // we will first load all messages from the messages.json using the Jackson
+        // desirializer
+        final List<Message> messages = loadMessages();
+        // then we will add the new message at the end of the list
+        messages.add(message);
+        System.out.println("saving message: ");
+
+        // then we serialize and save the new array of messages
+        saveMessages(messages);
+        System.out.println("Message saved: " + message.getContent());
+    }
+
+    /**
+     * Met à jour un message existant
+     */
+    public void updateMessage(final Message updatedMessage) throws IOException {
+        final List<Message> messages = loadMessages();
+        
+        for (int i = 0; i < messages.size(); i++) {
+            if (messages.get(i).getId().equals(updatedMessage.getId())) {
+                messages.set(i, updatedMessage);
+                saveMessages(messages);
+                return;
+            }
+        }
+        
+        // Si le message n'existe pas, le sauvegarder
+        messages.add(updatedMessage);
+        saveMessages(messages);
+    }
+    
+    /**
+     * Recherche un message par son ID
+     */
+    public Optional<Message> findById(final String messageId) throws IOException {
+        return loadMessages().stream()
+                .filter(message -> message.getId().equals(messageId))
+                .findFirst();
+    }
+
+    // Get all messages for a specific user (both sent and received)
+    public List<Message> getUserMessages(final String userEmail) throws IOException {
+        return loadMessages().stream()
+                .filter(m -> m.getSenderEmail().equals(userEmail) ||
+                        m.getReceiverEmail().equals(userEmail))
+                .collect(Collectors.toList());
+    }
+
+    // Get only messages sent from the user we pass in argument
+    public List<Message> getSentMessages(final String userEmail) throws IOException {
+        return loadMessages()
+                .stream() // here we turn this into a stream
+                .filter(m -> m.getSenderEmail().equals(userEmail))
+                .collect(Collectors.toList()); // this will gather all sent messages and put them into a List
+    }
+
+    // this will get only messages received by a user passed in
+    public List<Message> getReceivedMessages(final String userEmail) throws IOException {
+        return loadMessages()
+                .stream()
+                .filter(m -> m.getReceiverEmail().equals(userEmail))
+                .collect(Collectors.toList()); // here we tranform a stream back into a usable list
+    }
+
+    // Get only unread messages for a user
+    public List<Message> getUnreadMessages(final String userEmail) throws IOException {
+        return loadMessages()
+                .stream()
+                .filter(m -> m.getReceiverEmail().equals(userEmail) && !m.isRead())
+                .collect(Collectors.toList()); // this will gather all received and unread messages
+    }
+
+    // Get conversation between two users
+    public List<Message> getConversation(final String user1Email, final String user2Email) throws IOException {
+        return loadMessages().stream()
+                .filter(m -> (m.getSenderEmail().equals(user1Email) && m.getReceiverEmail().equals(user2Email)) ||
+                        (m.getSenderEmail().equals(user2Email) && m.getReceiverEmail().equals(user1Email)))
+                .collect(Collectors.toList());
+    }
+
+    // Delete a message
+    public boolean deleteMessage(final String messageId) throws IOException {
+        final List<Message> messages = loadMessages();
+        final boolean removed = messages.removeIf(m -> m.getId().equals(messageId));
+        if (removed) {
+            saveMessages(messages);
+            System.out.println("Message " + messageId + " deleted");
+        }
+        return removed;
+    }
+}
+
+
+
+// File: src/main/java/org/example/repository/JsonUserRepository.java
+package org.example.repository;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import org.example.model.User;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.type.CollectionType;
+
+public class JsonUserRepository {
+    private static final String USERS_FILE = "src/main/data/utilisateurs.json";
+    private final ObjectMapper objectMapper;
+    private final File usersFile;
+
+    public JsonUserRepository() {
+        // this object will be imported from jackson, it handles JSON serialization/deserialization
+        // Jackson's main class for JSON operations (JSON conversion)
+        this.objectMapper = new ObjectMapper(); 
+        // this is the file representing the user json 
+        this.usersFile = new File(USERS_FILE);
+        // No need for initializeRepository() since file already exists
+    }
+
+    // this method takes in a list of users of type User
+    public void saveUsers(final List<User> users) throws IOException {
+        // this method WriteValues takes the objects in the array users and writes them in the udersFile
+        objectMapper.writeValue(usersFile, users);
+    }
+
+    // this method reads Users from the json file and returns them
+    public List<User> loadUsers() throws IOException {
+        // if the userFIle is deleted we return an empty list
+        if (!usersFile.exists()) {
+            throw new IOException("utilisateurs.json file not found in data directory");
+        }
+        // here we Create a type definition for List<User>
+        final CollectionType listType = objectMapper.getTypeFactory()
+            .constructCollectionType(ArrayList.class, User.class);
+
+        // here we Read and convert JSON back to Java objects
+        return objectMapper.readValue(usersFile, listType);
+    }
+
+    // this method calls loadUsers() and then uses streams to filter out only the users with a certain email
+    // it returns an optional that can have a user or cannot have anything 
+    public Optional<User> findByEmail(final String email) throws IOException {
+        return loadUsers() // get list of users ArrayList<Users>
+            .stream()  // convert to stream
+            .filter(user -> user.getEmail().equals(email)) // filter users
+            .findFirst(); // triggers the execution and returns an Optional with the first user to pass the filter
+            // findFirst returns an Optional of type User
+                // - this Optional can either be empty if the stream doesn return anything 
+                // - or can contain a user
+
+                // - if the Optional is not empty, optn.isPresent() will return true and optn.get() will return the value stored
+                // - if its empty optn.isPresent() will return false
+        // - opts.empty() true
+        // opts.ifPresent(u -> u.setStatus(true))
+    }
+
+
+
+    public void saveUser(final User user) throws IOException {
+        final List<User> users = loadUsers();
+        users.removeIf(u -> u.getEmail().equals(user.getEmail()));
+        users.add(user);
+        saveUsers(users);
+    }
+
+    public void updateUserStatus(final String email, final boolean isOnline) throws IOException {
+        final List<User> users = loadUsers();
+        users.stream()
+            .filter(u -> u.getEmail().equals(email))
+            .findFirst()
+            .ifPresent(u -> {
+                u.setOnline(isOnline);
+                System.out.println("User " + email + " status updated to: " + isOnline);
+            });
+        saveUsers(users);
+    }
+}
+
+
+
+// File: src/main/java/org/example/server/ChatServer.java
+package org.example.server;
+
+import java.net.ServerSocket;
+import java.net.Socket;
+
+import org.example.broker.MessageBroker;
+
+public class ChatServer {
+    private static final int PORT = 5000;
+
+    public static void main(final String[] args) throws Exception {
+
+        MessageBroker.getInstance();
+
+        final ServerSocket server = new ServerSocket(PORT);
+        System.out.println("Server started on port " + PORT);
+        System.out.println("Waiting for clients...");
+
+        while (true) {
+            final Socket client = server.accept();
+
+            final ClientHandler clientHandler = new ClientHandler(client);
+
+            new Thread(clientHandler).start();
+        }
+    }
+}
+
+
+// File: src/main/java/org/example/server/ClientHandler.java
+package org.example.server;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.Socket;
+
+import org.example.broker.MessageBroker;
+import org.example.dto.Credentials;
+import org.example.model.Message;
+import org.example.service.UserService;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
+public class ClientHandler implements Runnable {
+    private static final String AUTH_SUCCESS = "AUTH_SUCCESS";
+    private static final String AUTH_FAILED = "AUTH_FAILED";
+
+    private final Socket clientSocket;
+    private final MessageBroker broker;
+    private final UserService userService;
+    private final ObjectMapper mapper;
+
+    private String clientEmail;
+    private PrintWriter output;
+    private BufferedReader input;
+    private volatile boolean isConnected;
+
+    public ClientHandler(final Socket socket) {
+        this.clientSocket = socket;
+        this.broker = MessageBroker.getInstance();
+        this.userService = new UserService();
+        this.mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    }
+
+    @Override
+    public void run() {
+        try (Socket socket = clientSocket;
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+
+            this.input = in;
+            this.output = out;
+
+            if (!authenticateUser()) {
+                sendResponse("AUTH_FAILED");
+                return;
+            }
+
+            sendResponse("AUTH_SUCCESS");
+            initializeSubscription();
+            processMessages();
+
+        } catch (final IOException e) {
+            System.out.println("Client connection error: " + e.getMessage());
+        } finally {
+            cleanup();
+        }
+    }
+
+    private boolean authenticateUser() throws IOException {
+        final Credentials credentials = mapper.readValue(input.readLine(), Credentials.class);
+        if (userService.authenticate(credentials.getEmail(), credentials.getPassword())) {
+            this.clientEmail = credentials.getEmail();
+            return true;
+        }
+        return false;
+    }
+
+    private void initializeSubscription() throws IOException {
+        userService.setUserOnlineStatus(clientEmail, true);
+        // broker.unregisterListener(clientEmail);
+        broker.registerListener(clientEmail, this);
+        isConnected = true;
+    }
+
+    private void processMessages() throws IOException {
+        String messageJson;
+        while (isConnected && (messageJson = input.readLine()) != null) {
+            try {
+                final Message message = mapper.readValue(messageJson, Message.class);
+                
+                if ("CHAT".equals(message.getType())) {
+                    broker.sendMessage(message);
+                } else if ("LOGOUT".equals(message.getType())) {
+                    terminateSession();
+                }
+            } catch (final IOException e) {
+                System.out.println("Invalid message format: " + messageJson);
+            }
+        }
+    }
+
+    public void onMessageReceived(final Message message) throws IOException {
+        output.println(mapper.writeValueAsString(message));
+    }
+
+    private void sendResponse(final String response) {
+        output.println(response);
+    }
+
+    private void terminateSession() {
+        isConnected = false;
+    }
+
+    private void cleanup() {
+        if (clientEmail != null) {
+            try {
+                broker.unregisterListener(clientEmail);
+                userService.setUserOnlineStatus(clientEmail, false);
+            } catch (final IOException e) {
+                System.err.println("Error setting user offline status: " + e.getMessage());
+            }
+        }
+    }
+}
+
+
+// File: src/main/java/org/example/service/ChatService.java
+package org.example.service;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.ConnectException;
+import java.net.Socket;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Consumer;
+
+import org.example.dto.Credentials;
+import org.example.model.Message;
+import org.example.model.User;
+import org.example.repository.JsonMessageRepository;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
+public class ChatService {
+    private static final String SERVER_ADDRESS = "localhost";
+    private static final int SERVER_PORT = 5000;
+
+    private Socket socket;
+    private PrintWriter out;
+    private BufferedReader in;
+    private String userEmail;
+    private final ObjectMapper objectMapper;
+    private Consumer<Message> messageConsumer;
+    private final JsonMessageRepository messageRepository;
+    private final UserService userService;
+
+    private Thread listenerThread;
+    private boolean isRunning = false;
+
+    public ChatService() {
+        this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        this.messageRepository = new JsonMessageRepository();
+        this.userService = new UserService();
+    }
+
+    // method that establishes connection to the server socket, for further communication.
+    public boolean connect(final Credentials credentials) throws IOException {
+        try {
+            // Se connecter au serveur
+            System.out.println("Tentative de connexion au serveur " + SERVER_ADDRESS + ":" + SERVER_PORT);
+            socket = new Socket(SERVER_ADDRESS, SERVER_PORT);
+            out = new PrintWriter(socket.getOutputStream(), true);
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+            // Envoyer les identifiants
+            final String jsonCredentials = objectMapper.writeValueAsString(credentials);
+            out.println(jsonCredentials);
+
+            // Attendre la réponse du serveur
+            final String response = in.readLine();
+            final boolean success = "AUTH_SUCCESS".equals(response);
+
+            if (success) {
+                this.userEmail = credentials.getEmail();
+                startMessageListener();
+                System.out.println("Authentification réussie pour " + userEmail);
+            } else {
+                System.out.println("Échec de l'authentification");
+                disconnect();
+            }
+
+            return success;
+        } catch (final ConnectException e) {
+            throw new IOException(
+                    "Impossible de se connecter au serveur. Assurez-vous que le serveur est démarré et accessible sur "
+                            + SERVER_ADDRESS + ":" + SERVER_PORT,
+                    e);
+        } catch (final Exception e) {
+            throw new IOException("Erreur lors de la connexion au serveur: " + e.getMessage(), e);
+        }
+    }
+
+    public void disconnect() throws IOException {
+        // Envoyer un message explicite de déconnexion
+        final Message logoutMsg = new Message();
+        logoutMsg.setType("LOGOUT");
+        logoutMsg.setSenderEmail(userEmail);
+        sendMessage(logoutMsg);
+
+        // Fermer les connexions
+        if (out != null)
+            out.close();
+        if (in != null)
+            in.close();
+        if (socket != null)
+            socket.close();
+
+        // Réinitialiser l'état
+        userEmail = null;
+        messageConsumer = null;
+
+        System.out.println("Déconnexion complète");
+    }
+
+    public boolean sendMessage(final Message message) throws IOException {
+        if (socket == null || socket.isClosed() || out == null) {
+            throw new IOException("Non connecté au serveur");
+        }
+        // Ne modifier le type que si ce n'est pas un message spécial (comme LOGOUT)
+        if (!"LOGOUT".equals(message.getType())) {
+            message.setType("CHAT");
+        }
+        final String jsonMessage = objectMapper.writeValueAsString(message);
+        out.println(jsonMessage);
+        return true;
+    }
+
+    public void acknowledgeMessage(final String messageId) throws IOException {
+        messageRepository.deleteMessage(messageId);
+    }
+
+    public List<String> getContacts(final String userEmail) throws IOException {
+        final Optional<User> optionalUser = userService.getUserByEmail(userEmail);
+        return optionalUser.map(User::getContacts).orElse(new ArrayList<>());
+    }
+
+    public boolean addContact(final String userEmail, final String contactEmail) throws IOException {
+        return userService.addContact(userEmail, contactEmail);
+    }
+
+    public boolean removeContact(final String userEmail, final String contactEmail) throws IOException {
+        return userService.removeContact(userEmail, contactEmail);
+    }
+
+    public List<Message> getConversation(final String user1Email, final String user2Email) throws IOException {
+        // Utiliser la méthode du repository pour récupérer la conversation réelle
+        return messageRepository.getConversation(user1Email, user2Email);
+    }
+
+    public void setMessageConsumer(final Consumer<Message> consumer) {
+        this.messageConsumer = consumer;
+    }
+
+    // i dont quite get how this part functions, i know that we receive messages in the Socket input but i actually dont know how are handling them
+    private void startMessageListener() {
+        isRunning = true;
+
+        listenerThread = new Thread(() -> {
+            try {
+                String jsonMessage;
+                while (isRunning && (jsonMessage = in.readLine()) != null) {
+                    try {
+                        final Message message = objectMapper.readValue(jsonMessage, Message.class);
+
+                        if ("LOGOUT_CONFIRM".equals(message.getType())) {
+                            break;
+                        }
+
+                        if ("CHAT".equals(message.getType())) {
+                            // Acquitter automatiquement la réception du message
+                            acknowledgeMessage(message.getId());
+
+                            // Transmettre le message au consommateur
+                            if (messageConsumer != null) {
+                                messageConsumer.accept(message);
+                            }
+                        }
+                    } catch (final Exception e) {
+                        System.err.println("Erreur lors du traitement du message: " + e.getMessage());
+                    }
+                }
+            } catch (final IOException e) {
+                if (isRunning) {
+                    System.err.println("Connexion perdue: " + e.getMessage());
+                }
+            } finally {
+                isRunning = false;
+            }
+        });
+
+        listenerThread.setDaemon(true);
+        listenerThread.start();
+    }
+}
+
+
+
+// File: src/main/java/org/example/service/MessageService.java
+/* package org.example.service;
+
+import java.io.IOException;
+import java.util.List;
+
+import org.example.broker.MessageBroker;
+import org.example.model.Message;
+import org.example.repository.JsonMessageRepository;
+import org.example.repository.JsonUserRepository;
+
+public class MessageService {
+    private final JsonMessageRepository messageRepository;
+    private final JsonUserRepository userRepository;
+    private final MessageBroker messageBroker;
+
+    public MessageService() {
+        this.messageRepository = new JsonMessageRepository();
+        this.userRepository = new JsonUserRepository();
+        this.messageBroker = MessageBroker.getInstance();
+    }
+
+    public boolean sendMessage(final Message message) throws IOException {
+        // Vérifier que l'expéditeur et le destinataire existent
+        if (userRepository.findByEmail(message.getSenderEmail()).isEmpty() || 
+            userRepository.findByEmail(message.getReceiverEmail()).isEmpty()) {
+            return false;
+        }
+        
+        // Le Message Broker gère la persistance et la mise en file d'attente
+        // Nous passons null ici car la décision d'envoyer le message directement
+        // est déjà prise au niveau du ClientHandler
+        messageBroker.sendMessage(message, null);
+        return true;
+    }
+
+    public List<Message> getUnreadMessages(final String userEmail) throws IOException {
+        return messageRepository.getUnreadMessages(userEmail);
+    }
+}
+ */
+
+
+// File: src/main/java/org/example/service/UserService.java
+package org.example.service;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
+
+import org.example.model.User;
+import org.example.repository.JsonUserRepository;
+
+public class UserService {
+    private final JsonUserRepository userRepository;
+
+    public UserService() {
+        this.userRepository = new JsonUserRepository();
+    }
+
+    /**
+     * Authentifie un utilisateur par email et mot de passe
+     */
+    public boolean authenticate(final String email, final String password) throws IOException {
+        final Optional<User> userOpt = userRepository.findByEmail(email);
+        if (userOpt.isPresent()) {
+            final User user = userOpt.get();
+            // Dans une application réelle, utiliser une méthode sécurisée de comparaison de mot de passe
+            return user.getPassword().equals(password);
+        }
+        return false;
+    }
+
+    /**
+     * Met à jour le statut en ligne d'un utilisateur
+     */
+    public void setUserOnlineStatus(final String email, final boolean status) throws IOException {
+        userRepository.updateUserStatus(email, status);
+    }
+
+    /**
+     * Récupère un utilisateur par son email
+     */
+    public Optional<User> getUserByEmail(final String email) throws IOException {
+        return userRepository.findByEmail(email);
+    }
+
+    /**
+     * Récupère la liste de tous les utilisateurs
+     */
+    public List<User> getAllUsers() throws IOException {
+        return userRepository.loadUsers();
+    }
+
+    /**
+     * Récupère la liste de tous les utilisateurs en ligne
+     */
+    public List<User> getOnlineUsers() throws IOException {
+        return userRepository.loadUsers().stream()
+                .filter(User::isOnline)
+                .toList();
+    }
+
+    /**
+     * Crée un nouvel utilisateur
+     */
+    public boolean createUser(final User user) throws IOException {
+        if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+            return false; // Utilisateur existe déjà
+        }
+        userRepository.saveUser(user);
+        return true;
+    }
+
+    /**
+     * Ajoute un contact à un utilisateur.
+     * Vérifie que l'utilisateur et le contact existent, que l'utilisateur n'ajoute pas lui-même
+     * et qu'il n'y a pas déjà de doublon.
+     */
+    public boolean addContact(final String userEmail, final String contactEmail) throws IOException {
+        // Vérification si l'utilisateur tente de s'ajouter lui-même
+        if (userEmail.equals(contactEmail)) {
+            throw new IllegalArgumentException("Vous ne pouvez pas vous ajouter vous-même comme contact");
+        }
+        
+        // Vérification de l'existence du contact
+        final Optional<User> contactOpt = userRepository.findByEmail(contactEmail);
+        if (contactOpt.isEmpty()) {
+            throw new IllegalArgumentException("Cet utilisateur n'existe pas");
+        }
+        
+        final Optional<User> userOpt = userRepository.findByEmail(userEmail);
+        if (userOpt.isPresent()) {
+            final User user = userOpt.get();
+            // Vérification si le contact est déjà présent
+            if (user.getContacts().contains(contactEmail)) {
+                throw new IllegalArgumentException("Ce contact est déjà dans votre liste");
+            }
+            user.addContact(contactEmail);
+            userRepository.saveUser(user);
+            return true;
+        }
+        throw new IllegalArgumentException("Une erreur est survenue lors de l'ajout du contact");
+    }
+
+    /**
+     * Supprime un contact de l'utilisateur.
+     */
+    public boolean removeContact(final String userEmail, final String contactEmail) throws IOException {
+        final Optional<User> userOpt = userRepository.findByEmail(userEmail);
+        if (userOpt.isPresent()) {
+            final User user = userOpt.get();
+            if (user.removeContact(contactEmail)) {
+                userRepository.saveUser(user);
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+
+
+// File: src/main/resources/fxml/chat.fxml
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="org.example.client.gui.controllers.ChatController">
+    
+    <!-- En-tête avec le nom de l'utilisateur et le bouton de déconnexion -->
+    <top>
+        <HBox alignment="CENTER_LEFT" spacing="10" style="-fx-background-color: #4CAF50; -fx-padding: 10px;">
+            <Label fx:id="userEmailLabel" text="Non connecté" style="-fx-text-fill: white; -fx-font-weight: bold;"/>
+            <Region HBox.hgrow="ALWAYS" />
+            <Button text="Déconnexion" onAction="#handleLogout" 
+                    style="-fx-background-color: #f44336; -fx-text-fill: white;"/>
+        </HBox>
+    </top>
+    
+    <!-- Partie centrale avec la liste des contacts et la zone de chat -->
+    <center>
+        <SplitPane dividerPositions="0.3">
+            <!-- Liste des contacts -->
+            <VBox spacing="10" style="-fx-padding: 10px;">
+                <Label text="Contacts" style="-fx-font-weight: bold;"/>
+                <ListView fx:id="contactListView" VBox.vgrow="ALWAYS"/>
+                <HBox spacing="5">
+                    <TextField fx:id="newContactField" promptText="Email du contact" HBox.hgrow="ALWAYS"/>
+                    <Button text="+" onAction="#handleAddContact"/>
+                    <Button text="-" onAction="#handleRemoveContact"/>
+                </HBox>
+            </VBox>
+            
+            <!-- Zone de chat -->
+            <VBox>
+                <!-- Historique des messages -->
+                <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS">
+                    <VBox fx:id="chatHistoryContainer" spacing="10" style="-fx-padding: 10px;"/>
+                </ScrollPane>
+                
+                <!-- Zone de saisie du message -->
+                <HBox spacing="5" alignment="CENTER" style="-fx-padding: 10px;">
+                    <TextField fx:id="messageField" promptText="Entrez votre message" HBox.hgrow="ALWAYS"/>
+                    <Button text="Envoyer" onAction="#handleSendMessage" 
+                            style="-fx-background-color: #4CAF50; -fx-text-fill: white;"/>
+                </HBox>
+            </VBox>
+        </SplitPane>
+    </center>
+    
+    <!-- Barre d'état en bas -->
+    <bottom>
+        <HBox alignment="CENTER_LEFT" style="-fx-padding: 5px; -fx-background-color: #f0f0f0;">
+            <Label fx:id="statusLabel" text="Prêt"/>
+        </HBox>
+    </bottom>
+</BorderPane>
+
+
+
+// File: src/main/resources/fxml/login.fxml
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.PasswordField?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Font?>
+
+<BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="400.0" minWidth="600.0"
+    prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/17"
+    xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.example.client.gui.controllers.LoginController">
+    <center>
+        <VBox alignment="CENTER" maxWidth="400.0" spacing="15.0" BorderPane.alignment="CENTER">
+            <children>
+                <Label text="Chat Application" textAlignment="CENTER">
+                    <font>
+                        <Font name="System Bold" size="24.0" />
+                    </font>
+                </Label>
+                <VBox spacing="5.0">
+                    <children>
+                        <Label text="Email" />
+                        <TextField fx:id="emailField" promptText="Entrez votre email" />
+                    </children>
+                </VBox>
+                <VBox spacing="5.0">
+                    <children>
+                        <Label text="Mot de passe" />
+                        <PasswordField fx:id="passwordField" promptText="Entrez votre mot de passe" />
+                    </children>
+                </VBox>
+                <Button fx:id="loginButton" defaultButton="true" maxWidth="1.7976931348623157E308"
+                    mnemonicParsing="false" onAction="#handleLogin" text="Se connecter">
+                    <VBox.margin>
+                        <Insets top="10.0" />
+                    </VBox.margin>
+                </Button>
+            </children>
+            <BorderPane.margin>
+                <Insets left="20.0" right="20.0" />
+            </BorderPane.margin>
+            <padding>
+                <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
+            </padding>
+        </VBox>
+    </center>
+    <bottom>
+        <HBox alignment="CENTER" prefHeight="50.0" spacing="10.0" BorderPane.alignment="CENTER">
+            <children>
+                <Label text="© 2025 Chat Application" textFill="#686868" />
+            </children>
+        </HBox>
+    </bottom>
+</BorderPane>
+
+

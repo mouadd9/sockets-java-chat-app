@@ -70,13 +70,15 @@ public class ChatController {
         messageField.setOnAction(this::handleSendMessage);
     }
 
+    // this function is called when we first create and cnofigure the controller
+    // it sets dependencies, and somehow gets incoming messages that were received when authenticating
     public void initData(final ChatService chatService, final String userEmail) {
         this.chatService = chatService;
         this.userEmail = userEmail;
         this.userEmailLabel.setText(userEmail);
 
         // Configurer le Consumer pour recevoir les messages
-        chatService.setMessageConsumer(this::handleIncomingMessage);
+        chatService.setMessageConsumer(this::handleIncomingMessage); // !!
 
         // Charger les contacts
         loadContacts();

@@ -18,38 +18,46 @@ public class ClientHandler implements Runnable {
     private static final String AUTH_SUCCESS = "AUTH_SUCCESS";
     private static final String AUTH_FAILED = "AUTH_FAILED";
 
-    private final Socket clientSocket;
+    private final Socket clientSocket; // socket used to communicate with the client
+
     private final MessageBroker broker;
     private final UserService userService;
     private final ObjectMapper mapper;
 
     private String clientEmail;
+
+    // input and output streams, to receive and send data over the socket
     private PrintWriter output;
     private BufferedReader input;
+
     private volatile boolean isConnected;
 
     public ClientHandler(final Socket socket) {
-        this.clientSocket = socket;
+        this.clientSocket = socket; // this is the socket used to communicate with the client
         this.broker = MessageBroker.getInstance();
-        this.userService = new UserService();
-        this.mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        this.userService = new UserService(); // this is used to authenticate clients
+        this.mapper = new ObjectMapper().registerModule(new JavaTimeModule()); // this is used to serialize and deserialize messages
     }
 
+    // this runs when the client handler is created, its purpose is to set up the input and outpur streams 
+    // authenticate the client that initiated the connection
     @Override
     public void run() {
-        try (Socket socket = clientSocket;
-                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-
+        try (
+            Socket socket = clientSocket;
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true)
+            ) {
             this.input = in;
             this.output = out;
-
             if (!authenticateUser()) {
                 sendResponse("AUTH_FAILED");
                 return;
             }
 
             sendResponse("AUTH_SUCCESS");
+            // here we register this client handler as a listener (that listens for incomming events or messages)
+            // now these messages are routed using the broker
             initializeSubscription();
             processMessages();
 
@@ -60,8 +68,11 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    // this function when called, expects the client to send JSON-encoded credentials, which it verifies using the UserService
     private boolean authenticateUser() throws IOException {
+        // here we deserealize credentials into a Credentials Object 
         final Credentials credentials = mapper.readValue(input.readLine(), Credentials.class);
+        // we use the service to authenticate the user
         if (userService.authenticate(credentials.getEmail(), credentials.getPassword())) {
             this.clientEmail = credentials.getEmail();
             return true;
@@ -97,6 +108,7 @@ public class ClientHandler implements Runnable {
         output.println(mapper.writeValueAsString(message));
     }
 
+    // this sends a response to the client associated to this client handler
     private void sendResponse(final String response) {
         output.println(response);
     }

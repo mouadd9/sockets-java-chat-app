@@ -42,12 +42,14 @@ public class LoginController {
             passwordField.textProperty().isEmpty())
         );
     }
-    
+
+    // this function takes in the login event from the view extracts credentials and calls connect from chat service
     @FXML
     private void handleLogin(final ActionEvent event) {
+        // here we get credentials
         final String email = emailField.getText().trim();
         final String password = passwordField.getText();
-        
+
         // Débinder la propriété disable avant de la modifier
         loginButton.disableProperty().unbind();
         loginButton.setDisable(true); // Désactiver le bouton
@@ -55,11 +57,17 @@ public class LoginController {
         new Thread(() -> {
             try {
                 final Credentials credentials = new Credentials(email, password);
+                // here we call connect() in chat service
+                // connect does the following :
+                    // - establishes connection with server socket (a client socket is created in server side for further communication)
+                    // - it send credentials using the output stream and waits for response the server creates a client handler and checks authenticates client
+                    // - if authenticated we run code in a thread (to load messages sent to the client offline using loadMessages() ), and we return "true".
                 final boolean success = chatService.connect(credentials);
                 
                 Platform.runLater(() -> {
                     if (success) {
                         try {
+                            // if authentication is successful we open the chat view
                             openChatWindow(email);
                         } catch (final IOException e) {
                             showError("Erreur d'interface", "Impossible d'ouvrir la fenêtre de chat: " + e.getMessage());
@@ -91,7 +99,8 @@ public class LoginController {
             passwordField.textProperty().isEmpty())
         );
     }
-    
+
+    // this function loads chat.fxml and configures it with a controller chatController
     private void openChatWindow(final String userEmail) throws IOException {
         // Charger la vue de chat
         final FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/chat.fxml"));

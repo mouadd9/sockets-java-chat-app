@@ -1,49 +1,19 @@
 #!/bin/bash
 
-# Répertoire courant
-WORKSPACE_DIR=$(pwd)
-TEMP_FILE="/tmp/code_content_$(date +%Y%m%d_%H%M%S).txt"
+# Output file
+output_file="combined_files.txt"
 
-echo "🔍 Recherche des fichiers dans le workspace..."
-echo "📂 Workspace: $WORKSPACE_DIR"
+# Clear the output file if it already exists
+> "$output_file"
 
-# Trouver tous les fichiers .ts et .java, en excluant node_modules et target
-find "$WORKSPACE_DIR" \
-    -type f \( -name "*.fxml" -o -name "*.java" \) \
-    ! -path "*/node_modules/*" \
-    ! -path "*/target/*" \
-    ! -path "*/.git/*" \
-    ! -path "*/dist/*" \
-    ! -path "*/build/*" > "$TEMP_FILE.list"
+# Find all .java and .fxml files inside the src directory and its subdirectories
+find src -type f \( -name "*.java" -o -name "*.fxml" \) | while read -r file; do
+    # Append the file path as a header
+    echo "// File: $file" >> "$output_file"
+    # Append the file content
+    cat "$file" >> "$output_file"
+    # Add a separator between files
+    echo -e "\n\n" >> "$output_file"
+done
 
-# Compter les fichiers
-FILE_COUNT=$(wc -l < "$TEMP_FILE.list")
-
-# Vérifier si des fichiers ont été trouvés
-if [ "$FILE_COUNT" -eq 0 ]; then
-    echo "❌ Aucun fichier .ts ou .java trouvé dans le workspace (en excluant node_modules et target)."
-    rm "$TEMP_FILE.list"
-    exit 1
-fi
-
-echo "🔢 Nombre de fichiers trouvés: $FILE_COUNT"
-
-# Initialiser le fichier temporaire
-echo "" > "$TEMP_FILE"
-
-# Pour chaque fichier, ajouter son chemin et son contenu au fichier temporaire
-while IFS= read -r file; do
-    echo -e "\n\n// ============================================" >> "$TEMP_FILE"
-    echo -e "// FICHIER: $file" >> "$TEMP_FILE"
-    echo -e "// ============================================\n" >> "$TEMP_FILE"
-    cat "$file" >> "$TEMP_FILE"
-done < "$TEMP_FILE.list"
-
-# Copier le contenu dans le presse-papiers
-cat "$TEMP_FILE" | pbcopy
-
-echo "✅ Contenu copié dans le presse-papiers !"
-echo "📋 $FILE_COUNT fichiers copiés (code source uniquement, pas d'images)"
-
-# Nettoyer les fichiers temporaires
-rm "$TEMP_FILE" "$TEMP_FILE.list"
+echo "All .java and .fxml files inside 'src' have been combined into $output_file"

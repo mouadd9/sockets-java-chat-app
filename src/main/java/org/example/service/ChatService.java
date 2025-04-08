@@ -41,6 +41,7 @@ public class ChatService {
         this.userService = new UserService();
     }
 
+    // method that establishes connection to the server socket, for further communication.
     public boolean connect(final Credentials credentials) throws IOException {
         try {
             // Se connecter au serveur
@@ -138,6 +139,7 @@ public class ChatService {
         this.messageConsumer = consumer;
     }
 
+    // i dont quite get how this part functions, i know that we receive messages in the Socket input but i actually dont know how are handling them
     private void startMessageListener() {
         isRunning = true;
 
@@ -158,7 +160,7 @@ public class ChatService {
 
                             // Transmettre le message au consommateur
                             if (messageConsumer != null) {
-                                messageConsumer.accept(message);
+                                messageConsumer.accept(message); // !!
                             }
                         }
                     } catch (final Exception e) {
