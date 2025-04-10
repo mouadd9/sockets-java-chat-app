@@ -1,0 +1,115 @@
+[ {
+  "id" : "69645989-f407-442d-ac94-571b942bd75c",
+  "senderEmail" : "kihl@test.com",
+  "receiverEmail" : "fati@test.com",
+  "content" : "comment cv",
+  "timestamp" : [ 2025, 4, 5, 10, 21, 58, 590602300 ],
+  "type" : "CHAT",
+  "status" : "PENDING",
+  "quotedMessageId" : null,
+  "quotedMessageInfo" : null,
+  "read" : false
+}, {
+  "id" : "40dc3d5d-fd99-4ffb-8d81-9bc132b2b469",
+  "senderEmail" : "kihl@test.com",
+  "receiverEmail" : "fati@test.com",
+  "content" : "cv lhmdlh",
+  "timestamp" : [ 2025, 4, 5, 10, 22, 35, 459340200 ],
+  "type" : "CHAT",
+  "status" : "PENDING",
+  "quotedMessageId" : "69645989-f407-442d-ac94-571b942bd75c",
+  "quotedMessageInfo" : null,
+  "read" : false
+}, {
+  "id" : "b14a81ee-d91b-40b5-b6fc-bc055acf9ecb",
+  "senderEmail" : "fati@test.com",
+  "receiverEmail" : "kihl@test.com",
+  "content" : "hi",
+  "timestamp" : [ 2025, 4, 8, 22, 17, 17, 95982600 ],
+  "type" : "CHAT",
+  "status" : "PENDING",
+  "quotedMessageId" : null,
+  "quotedMessageInfo" : null,
+  "read" : false
+}, {
+  "id" : "bd1a5fa5-3ccc-4cf8-826f-9b0679852bef",
+  "senderEmail" : "kihl@test.com",
+  "receiverEmail" : "fati@test.com",
+  "content" : "salut",
+  "timestamp" : [ 2025, 4, 8, 22, 17, 28, 708848000 ],
+  "type" : "CHAT",
+  "status" : "PENDING",
+  "quotedMessageId" : "b14a81ee-d91b-40b5-b6fc-bc055acf9ecb",
+  "quotedMessageInfo" : {
+    "senderEmail" : "fati@test.com",
+    "content" : "hi",
+    "timestamp" : [ 2025, 4, 8, 22, 17, 17, 95982600 ]
+  },
+  "read" : false
+}, {
+  "id" : "8ccf7f33-e2e5-438f-9db0-0cfd93aaec3b",
+  "senderEmail" : "kihl@test.com",
+  "receiverEmail" : "fati@test.com",
+  "content" : "gunaydin",
+  "timestamp" : [ 2025, 4, 9, 11, 46, 23, 818568700 ],
+  "type" : "CHAT",
+  "status" : "PENDING",
+  "quotedMessageId" : null,
+  "quotedMessageInfo" : null,
+  "read" : false
+}, {
+  "id" : "a0636299-491a-4bfb-b2b2-0cf3351afce0",
+  "senderEmail" : "fati@test.com",
+  "receiverEmail" : "kihl@test.com",
+  "content" : "hiiiiiiii",
+  "timestamp" : [ 2025, 4, 9, 11, 46, 39, 634320800 ],
+  "type" : "CHAT",
+  "status" : "PENDING",
+  "quotedMessageId" : null,
+  "quotedMessageInfo" : null,
+  "read" : false
+}, {
+  "id" : "2efd9fc4-7534-42a8-8452-04eb95482afd",
+  "senderEmail" : "fati@test.com",
+  "receiverEmail" : "youns@test.com",
+  "content" : "hi",
+  "timestamp" : [ 2025, 4, 9, 11, 57, 42, 670421200 ],
+  "type" : "CHAT",
+  "status" : "PENDING",
+  "quotedMessageId" : null,
+  "quotedMessageInfo" : null,
+  "read" : false
+}, {
+  "id" : "d3bd1c1e-a9e7-4769-a117-a273140f9a8b",
+  "senderEmail" : "youns@test.com",
+  "receiverEmail" : "fati@test.com",
+  "content" : "cv",
+  "timestamp" : [ 2025, 4, 9, 11, 58, 11, 412604400 ],
+  "type" : "CHAT",
+  "status" : "PENDING",
+  "quotedMessageId" : null,
+  "quotedMessageInfo" : null,
+  "read" : false
+}, {
+  "id" : "0ba2220e-4b28-4038-9dfd-92b2486c0291",
+  "senderEmail" : "fati@test.com",
+  "receiverEmail" : "youns@test.com",
+  "content" : "cv lhmdlh",
+  "timestamp" : [ 2025, 4, 9, 11, 58, 24, 788963700 ],
+  "type" : "CHAT",
+  "status" : "PENDING",
+  "quotedMessageId" : null,
+  "quotedMessageInfo" : null,
+  "read" : false
+}, {
+  "id" : "8e619838-fdaf-49cc-bdc4-640121c18197",
+  "senderEmail" : "youns@test.com",
+  "receiverEmail" : "fati@test.com",
+  "content" : "ok",
+  "timestamp" : [ 2025, 4, 9, 11, 58, 51, 59839600 ],
+  "type" : "CHAT",
+  "status" : "PENDING",
+  "quotedMessageId" : null,
+  "quotedMessageInfo" : null,
+  "read" : false
+} ]

@@ -82,4 +82,27 @@ public class JsonUserRepository {
             });
         saveUsers(users);
     }
+
+    public void updateUser(User user) throws IOException {
+        if (user == null || user.getEmail() == null) {
+            throw new IllegalArgumentException("User and email cannot be null");
+        }
+
+        List<User> users = loadUsers();
+        boolean found = false;
+
+        for (int i = 0; i < users.size(); i++) {
+            if (users.get(i).getEmail().equals(user.getEmail())) {
+                users.set(i, user);
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            throw new IllegalArgumentException("User not found: " + user.getEmail());
+        }
+
+        saveUsers(users);
+    }
 }

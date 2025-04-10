@@ -1,5 +1,7 @@
 package org.example.client.gui;
 
+
+
 /**
  * Classe de lancement pour l'application JavaFX.
  * Cette classe sert de point d'entrée principal pour éviter les problèmes

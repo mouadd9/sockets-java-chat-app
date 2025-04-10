@@ -7,51 +7,90 @@
 <BorderPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="org.example.client.gui.controllers.ChatController">
     
-    <!-- En-tête avec le nom de l'utilisateur et le bouton de déconnexion -->
+    <!-- En-tête avec les informations de l'utilisateur -->
     <top>
-        <HBox alignment="CENTER_LEFT" spacing="10" style="-fx-background-color: #4CAF50; -fx-padding: 10px;">
-            <Label fx:id="userEmailLabel" text="Non connecté" style="-fx-text-fill: white; -fx-font-weight: bold;"/>
-            <Region HBox.hgrow="ALWAYS" />
-            <Button text="Déconnexion" onAction="#handleLogout" 
-                    style="-fx-background-color: #f44336; -fx-text-fill: white;"/>
+        <HBox alignment="CENTER_LEFT" spacing="10" style="-fx-padding: 10; -fx-background-color: #202C33;">
+            <Label fx:id="userEmailLabel" style="-fx-text-fill: white;"/>
+            <Label fx:id="userStatusLabel" style="-fx-text-fill: #8696A0;" onMouseClicked="#handleEditStatus"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="profileButton" text="👤" onAction="#handleOpenProfile"
+                    style="-fx-background-color: transparent; -fx-text-fill: #00A884; -fx-font-size: 16;"/>
+            <Button text="Déconnexion" onAction="#handleLogout"
+                    style="-fx-background-color: transparent; -fx-text-fill: #00A884;"/>
         </HBox>
     </top>
     
     <!-- Partie centrale avec la liste des contacts et la zone de chat -->
     <center>
-        <SplitPane dividerPositions="0.3">
+        <SplitPane dividerPositions="0.3" style="-fx-background-color: #111B21;">
             <!-- Liste des contacts -->
-            <VBox spacing="10" style="-fx-padding: 10px;">
-                <Label text="Contacts" style="-fx-font-weight: bold;"/>
-                <ListView fx:id="contactListView" VBox.vgrow="ALWAYS"/>
+            <VBox spacing="10" style="-fx-padding: 10px; -fx-background-color: #111B21;">
+                <Label text="Contacts" style="-fx-font-weight: bold; -fx-text-fill: #E9EDF0;"/>
+                <ListView fx:id="contactListView" VBox.vgrow="ALWAYS" 
+                         style="-fx-background-color: #111B21; -fx-control-inner-background: #111B21; 
+                                -fx-selection-bar: #2A3942; -fx-selection-bar-non-focused: #202C33;"/>
                 <HBox spacing="5">
-                    <TextField fx:id="newContactField" promptText="Email du contact" HBox.hgrow="ALWAYS"/>
-                    <Button text="+" onAction="#handleAddContact"/>
-                    <Button text="-" onAction="#handleRemoveContact"/>
+                    <TextField fx:id="newContactField" promptText="Email du contact" HBox.hgrow="ALWAYS"
+                             style="-fx-background-color: #2A3942; -fx-text-fill: #E9EDF0;
+                                    -fx-prompt-text-fill: #8696A0;"/>
+                    <Button text="+" onAction="#handleAddContact" 
+                            style="-fx-background-color: #00A884; -fx-text-fill: white;"/>
+                    <Button text="-" onAction="#handleRemoveContact"
+                            style="-fx-background-color: #DC3545; -fx-text-fill: white;"/>
                 </HBox>
             </VBox>
             
             <!-- Zone de chat -->
-            <VBox>
+            <VBox style="-fx-background-color: #0B141A;">
                 <!-- Historique des messages -->
-                <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS">
-                    <VBox fx:id="chatHistoryContainer" spacing="10" style="-fx-padding: 10px;"/>
+                <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS" style="-fx-background-color: transparent;">
+                    <VBox fx:id="chatHistoryContainer" spacing="2" style="-fx-padding: 10px;"/>
                 </ScrollPane>
                 
-                <!-- Zone de saisie du message -->
-                <HBox spacing="5" alignment="CENTER" style="-fx-padding: 10px;">
-                    <TextField fx:id="messageField" promptText="Entrez votre message" HBox.hgrow="ALWAYS"/>
-                    <Button text="Envoyer" onAction="#handleSendMessage" 
-                            style="-fx-background-color: #4CAF50; -fx-text-fill: white;"/>
-                </HBox>
+                <!-- Zone de réponse et saisie -->
+                <VBox style="-fx-background-color: #1F2C34; -fx-padding: 8px;">
+                    <!-- Aperçu du message cité -->
+                    <VBox fx:id="quotedMessagePreview" managed="false" visible="false">
+                        <HBox spacing="8" style="-fx-padding: 8;">
+                            <Region minWidth="4" style="-fx-background-color: #00A884;"/>
+                            <VBox spacing="2" HBox.hgrow="ALWAYS">
+                                <Label fx:id="quotedMessageLabel" wrapText="true"
+                                       style="-fx-text-fill: #E9EDF0; -fx-font-size: 13px;"/>
+                            </VBox>
+                            <Button text="✕" onAction="#handleCancelQuote"
+                                    style="-fx-background-color: transparent; -fx-text-fill: #8696A0;"/>
+                        </HBox>
+                    </VBox>
+                    
+                    <!-- Indicateur "en train d'écrire" -->
+                    <Label fx:id="typingIndicatorLabel" 
+                           style="-fx-text-fill: #8696A0; -fx-font-style: italic; -fx-padding: 4px;"/>
+                    
+                    <!-- Zone de saisie du message -->
+                    <HBox spacing="8" alignment="CENTER">
+                        <Button fx:id="attachButton" text="📎" onAction="#handleAttachFile" 
+                                style="-fx-background-color: transparent; -fx-text-fill: #8696A0;"/>
+                        <Button fx:id="recordButton" text="🎤" onAction="#handleRecordAudio"
+                                style="-fx-background-color: transparent; -fx-text-fill: #8696A0;"/>
+                        <TextField fx:id="messageField" promptText="Écrivez un message..." HBox.hgrow="ALWAYS"
+                                 style="-fx-background-color: #2A3942;
+                                        -fx-text-fill: #E9EDF0;
+                                        -fx-prompt-text-fill: #8696A0;"/>
+                        <Button text="Envoyer" onAction="#handleSendMessage" 
+                                style="-fx-background-color: #00A884; -fx-text-fill: white;"/>
+                    </HBox>
+                </VBox>
             </VBox>
+            
+            <!-- Section for group chats -->
+          
         </SplitPane>
     </center>
     
     <!-- Barre d'état en bas -->
     <bottom>
-        <HBox alignment="CENTER_LEFT" style="-fx-padding: 5px; -fx-background-color: #f0f0f0;">
-            <Label fx:id="statusLabel" text="Prêt"/>
+        <HBox alignment="CENTER_LEFT" style="-fx-padding: 5px; -fx-background-color: #1F2C34;">
+            <Label fx:id="statusLabel" text="Prêt" style="-fx-text-fill: #8696A0;"/>
         </HBox>
     </bottom>
 </BorderPane>

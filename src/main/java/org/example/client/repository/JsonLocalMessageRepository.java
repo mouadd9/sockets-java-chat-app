@@ -17,14 +17,27 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 /**
  * Classe de persistance locale pour l'historique des messages d'un utilisateur.
- * L'historique est stocké sous forme de fichier JSON dans le dossier "src/main/client_data".
+ * Cette classe permet de stocker et récupérer les messages dans des fichiers JSON locaux.
+ * Chaque utilisateur possède son propre fichier de messages.
+ * 
+ * Caractéristiques principales :
+ * - Stockage des messages dans le dossier "src/main/client_data"
+ * - Utilisation de Jackson pour la sérialisation/désérialisation JSON
+ * - Gestion automatique de la création du dossier de stockage
+ * - Support des dates/heures avec JavaTimeModule
  */
 public class JsonLocalMessageRepository {
-    // Utilisation du répertoire de projet pour stocker les données clients
+    // Chemin du dossier où sont stockés les fichiers de messages
     private static final String LOCAL_FOLDER = System.getProperty("user.dir")
             + File.separator + "src" + File.separator + "main" + File.separator + "client_data";
     private final ObjectMapper objectMapper;
 
+    /**
+     * Constructeur qui initialise l'ObjectMapper et crée le dossier de stockage si nécessaire.
+     * Configure l'ObjectMapper pour :
+     * - Gérer les dates/heures avec JavaTimeModule
+     * - Formater le JSON de manière lisible (indentation)
+     */
     public JsonLocalMessageRepository() {
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
@@ -32,6 +45,10 @@ public class JsonLocalMessageRepository {
         ensureLocalFolderExists();
     }
 
+    /**
+     * Vérifie l'existence du dossier de stockage et le crée si nécessaire.
+     * @throws IOException si la création du dossier échoue
+     */
     private void ensureLocalFolderExists() {
         final Path folderPath = Paths.get(LOCAL_FOLDER);
         if (!Files.exists(folderPath)) {
@@ -44,7 +61,9 @@ public class JsonLocalMessageRepository {
     }
 
     /**
-     * Renvoie le chemin complet du fichier de l'utilisateur.
+     * Génère le chemin du fichier JSON pour un utilisateur donné.
+     * @param userEmail l'email de l'utilisateur
+     * @return le chemin complet du fichier de messages de l'utilisateur
      */
     private String getUserFilePath(final String userEmail) {
         // Remplacer les caractères spéciaux pour créer un nom de fichier valide
@@ -53,7 +72,10 @@ public class JsonLocalMessageRepository {
     }
 
     /**
-     * Charge la liste des messages locaux pour l'utilisateur.
+     * Charge les messages locaux d'un utilisateur depuis son fichier JSON.
+     * @param userEmail l'email de l'utilisateur
+     * @return la liste des messages de l'utilisateur, ou une liste vide si le fichier n'existe pas
+     * @throws IOException si une erreur survient lors de la lecture du fichier
      */
     public List<Message> loadLocalMessages(final String userEmail) throws IOException {
         final String filePath = getUserFilePath(userEmail);
@@ -67,7 +89,10 @@ public class JsonLocalMessageRepository {
     }
 
     /**
-     * Enregistre la liste des messages locaux pour l'utilisateur.
+     * Sauvegarde la liste des messages d'un utilisateur dans son fichier JSON.
+     * @param userEmail l'email de l'utilisateur
+     * @param messages la liste des messages à sauvegarder
+     * @throws IOException si une erreur survient lors de l'écriture du fichier
      */
     public void saveLocalMessages(final String userEmail, final List<Message> messages) throws IOException {
         final String filePath = getUserFilePath(userEmail);
@@ -75,7 +100,10 @@ public class JsonLocalMessageRepository {
     }
 
     /**
-     * Ajoute un nouveau message dans l'historique local pour l'utilisateur.
+     * Ajoute un nouveau message à l'historique local d'un utilisateur.
+     * @param userEmail l'email de l'utilisateur
+     * @param message le message à ajouter
+     * @throws IOException si une erreur survient lors de la lecture/écriture du fichier
      */
     public void addLocalMessage(final String userEmail, final Message message) throws IOException {
         final List<Message> messages = loadLocalMessages(userEmail);
@@ -84,7 +112,10 @@ public class JsonLocalMessageRepository {
     }
 
     /**
-     * Supprime un message de l'historique local pour l'utilisateur.
+     * Supprime toutes les conversations entre l'utilisateur et un contact donné.
+     * @param userEmail l'email de l'utilisateur
+     * @param contactEmail l'email du contact
+     * @throws IOException si une erreur survient lors de la lecture/écriture du fichier
      */
     public void removeConversation(final String userEmail, final String contactEmail) throws IOException {
         final List<Message> messages = loadLocalMessages(userEmail);

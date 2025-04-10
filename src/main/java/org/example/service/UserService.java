@@ -3,12 +3,16 @@ package org.example.service;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.example.model.User;
 import org.example.repository.JsonUserRepository;
+import org.example.broker.MessageBroker;
 
 public class UserService {
     private final JsonUserRepository userRepository;
+    private final Map<String, Long> lastStatusUpdateTime = new ConcurrentHashMap<>();
 
     public UserService() {
         this.userRepository = new JsonUserRepository();
@@ -31,7 +35,18 @@ public class UserService {
      * Met à jour le statut en ligne d'un utilisateur
      */
     public void setUserOnlineStatus(final String email, final boolean status) throws IOException {
-        userRepository.updateUserStatus(email, status);
+        final Optional<User> userOpt = userRepository.findByEmail(email);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            // Ne mettre à jour que si le statut a changé
+            if (user.isOnline() != status) {
+                user.setOnline(status);
+                userRepository.saveUser(user);
+                System.out.println("Statut de " + email + " mis à jour dans la base de données: " + (status ? "en ligne" : "hors ligne"));
+            }
+        } else {
+            System.err.println("Tentative de mise à jour du statut pour un utilisateur inexistant: " + email);
+        }
     }
 
     /**
@@ -112,5 +127,58 @@ public class UserService {
             }
         }
         return false;
+    }
+
+    /**
+     * Met à jour un utilisateur existant
+     */
+    public void updateUser(User user) throws IOException {
+        if (userRepository.findByEmail(user.getEmail()).isEmpty()) {
+            throw new IOException("Utilisateur non trouvé: " + user.getEmail());
+        }
+        userRepository.saveUser(user);
+    }
+
+    /**
+     * Vérifie si un utilisateur est vraiment connecté au serveur
+     * Cette méthode est utilisée pour vérifier si un utilisateur est actuellement connecté au serveur,
+     * pas seulement marqué comme en ligne dans la base de données
+     */
+    public boolean isUserReallyConnected(final String email) {
+        try {
+            // Demander au broker quels utilisateurs ont une session active
+            return MessageBroker.getInstance().hasActiveClient(email);
+        } catch (Exception e) {
+            System.err.println("Erreur lors de la vérification de la connexion: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Synchronise les statuts des utilisateurs avec l'état réel des connexions
+     */
+    public void synchronizeOnlineStatuses() throws IOException {
+        List<User> users = getAllUsers();
+        for (User user : users) {
+            // Vérifier si l'utilisateur a une session active auprès du broker
+            boolean isReallyConnected = isUserReallyConnected(user.getEmail());
+            
+            // Ne mettre à jour que s'il y a une différence et éviter les mises à jour trop fréquentes
+            if (user.isOnline() != isReallyConnected) {
+                // Vérifier le timestamp de la dernière mise à jour pour éviter les oscillations
+                Long lastUpdateTime = lastStatusUpdateTime.getOrDefault(user.getEmail(), 0L);
+                long currentTime = System.currentTimeMillis();
+                
+                // N'autoriser les mises à jour qu'après 30 secondes depuis la dernière modification
+                if (currentTime - lastUpdateTime > 30000) {
+                    System.out.println("Correction du statut de " + user.getEmail() + ": " 
+                        + (user.isOnline() ? "en ligne" : "hors ligne") 
+                        + " -> " + (isReallyConnected ? "en ligne" : "hors ligne"));
+                        
+                    setUserOnlineStatus(user.getEmail(), isReallyConnected);
+                    lastStatusUpdateTime.put(user.getEmail(), currentTime);
+                }
+            }
+        }
     }
 }

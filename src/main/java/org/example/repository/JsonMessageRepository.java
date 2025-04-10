@@ -31,14 +31,51 @@ public class JsonMessageRepository {
         this.objectMapper.registerModule(new JavaTimeModule());
         // this provides the path for the messages.json file
         this.messagesFile = new File(MESSAGES_FILE);
+        initializeMessagesFile();
+    }
+
+    private void initializeMessagesFile() {
+        try {
+            if (!messagesFile.exists()) {
+                // Créer le répertoire parent s'il n'existe pas
+                File parentDir = messagesFile.getParentFile();
+                if (parentDir != null && !parentDir.exists()) {
+                    parentDir.mkdirs();
+                }
+                // Créer le fichier avec un tableau vide
+                saveMessages(new ArrayList<>());
+                System.out.println("Fichier messages.json initialisé avec succès");
+            }
+        } catch (IOException e) {
+            System.err.println("Erreur lors de l'initialisation du fichier messages.json: " + e.getMessage());
+        }
     }
 
     // this method uses a jackson method used to serialize any Java value as JSON
     // output, written to File provided.
     public void saveMessages(final List<Message> messages) throws IOException {
-        // inputs : a list of messages , a file path
-        // effect : serialization and persistance into the provided file path
-        objectMapper.writeValue(messagesFile, messages);
+        try {
+            // Créer une sauvegarde avant d'écrire
+            if (messagesFile.exists()) {
+                File backupFile = new File(MESSAGES_FILE + ".bak");
+                if (backupFile.exists()) {
+                    backupFile.delete();
+                }
+                messagesFile.renameTo(backupFile);
+            }
+            
+            // Écrire les nouveaux messages
+            objectMapper.writeValue(messagesFile, messages);
+            System.out.println("Messages sauvegardés avec succès");
+        } catch (IOException e) {
+            System.err.println("Erreur lors de la sauvegarde des messages: " + e.getMessage());
+            // Restaurer la sauvegarde si disponible
+            File backupFile = new File(MESSAGES_FILE + ".bak");
+            if (backupFile.exists()) {
+                backupFile.renameTo(messagesFile);
+            }
+            throw e;
+        }
     }
 
     // this method will retrieve data from the JSON file and return a list of
@@ -47,23 +84,40 @@ public class JsonMessageRepository {
     // have
     public List<Message> loadMessages() throws IOException {
         if (!messagesFile.exists()) {
-            throw new IOException("messages.json file not found in data directory");
+            System.out.println("Fichier messages.json non trouvé, création d'un nouveau fichier");
+            saveMessages(new ArrayList<>());
+            return new ArrayList<>();
         }
-        // this is the key line
-        // here we tell jackson that we need an ArrayList containing Message objects
-        // !!!!!!!
-        // we are telling jackson that the json file is an array (ArrayList) and this
-        // array will have objects of type (Message)
-        final CollectionType listType = objectMapper.getTypeFactory()
-                .constructCollectionType(ArrayList.class, Message.class);
-        // this readVale() method needs two informations to function , first the path of
-        // the JSON file then an information regarding the types
-        // that jackson should use to desirialize
-        // its like we are telling jackson to Take this JSON array (messagesFile) and
-        // create an ArrayList of Message objects from it.
-        final ArrayList<Message> messages = objectMapper.readValue(messagesFile, listType);
-        // then we return the messages array
-        return messages;
+
+        try {
+            final CollectionType listType = objectMapper.getTypeFactory()
+                    .constructCollectionType(ArrayList.class, Message.class);
+            return objectMapper.readValue(messagesFile, listType);
+        } catch (IOException e) {
+            System.err.println("Erreur lors de la lecture des messages: " + e.getMessage());
+            
+            // Essayer de restaurer depuis la sauvegarde
+            File backupFile = new File(MESSAGES_FILE + ".bak");
+            if (backupFile.exists()) {
+                System.out.println("Tentative de restauration depuis la sauvegarde...");
+                try {
+                    final CollectionType listType = objectMapper.getTypeFactory()
+                            .constructCollectionType(ArrayList.class, Message.class);
+                    List<Message> messages = objectMapper.readValue(backupFile, listType);
+                    // Si la restauration réussit, sauvegarder les messages restaurés
+                    saveMessages(messages);
+                    return messages;
+                } catch (IOException backupError) {
+                    System.err.println("Échec de la restauration depuis la sauvegarde: " + backupError.getMessage());
+                }
+            }
+            
+            // Si tout échoue, réinitialiser le fichier
+            System.out.println("Réinitialisation du fichier messages.json");
+            List<Message> emptyList = new ArrayList<>();
+            saveMessages(emptyList);
+            return emptyList;
+        }
     }
 
     public void saveMessage(final Message message) throws IOException {
@@ -152,6 +206,12 @@ public class JsonMessageRepository {
         final List<Message> messages = loadMessages();
         final boolean removed = messages.removeIf(m -> m.getId().equals(messageId));
         if (removed) {
+            // Mettre à jour les messages qui citaient ce message
+            messages.forEach(m -> {
+                if (messageId.equals(m.getQuotedMessageId())) {
+                    m.setQuotedMessageId(null); // Supprimer la référence
+                }
+            });
             saveMessages(messages);
             System.out.println("Message " + messageId + " deleted");
         }

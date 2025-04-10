@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.image.*?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.shape.Circle?>
+
+<VBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      fx:controller="org.example.client.gui.controllers.ProfileController"
+      styleClass="profile-view"
+      spacing="20"
+      alignment="TOP_CENTER"
+      style="-fx-background-color: #111B21;">
+
+    <!-- Header avec bouton retour -->
+    <HBox alignment="CENTER_LEFT" spacing="10" style="-fx-padding: 10;">
+        <Button fx:id="backButton" text="←" styleClass="back-button"
+                style="-fx-background-color: transparent; -fx-text-fill: #00A884; -fx-font-size: 20;"/>
+        <Label text="Profil" style="-fx-text-fill: white; -fx-font-size: 18;"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button fx:id="editButton" text="✏️" styleClass="edit-button"
+                style="-fx-background-color: transparent; -fx-text-fill: #00A884; -fx-font-size: 16;"/>
+    </HBox>
+
+    <!-- Container principal -->
+    <ScrollPane fitToWidth="true" style="-fx-background: #111B21; -fx-background-color: transparent;">
+        <VBox spacing="20" alignment="TOP_CENTER" style="-fx-padding: 20;">
+            
+            <!-- Photo de profil -->
+            <StackPane>
+                <Circle fx:id="profilePhotoCircle" radius="60" 
+                        style="-fx-fill: #202C33;"/>
+                <ImageView fx:id="profilePhotoView" fitWidth="120" fitHeight="120" 
+                          preserveRatio="true"/>
+                <Button fx:id="changePhotoButton" text="📷" 
+                        style="-fx-background-color: #00A884; -fx-text-fill: white;"
+                        visible="false"/>
+            </StackPane>
+
+            <!-- Nom d'utilisateur -->
+            <VBox spacing="5" alignment="CENTER" styleClass="profile-section">
+                <Label text="Nom" style="-fx-text-fill: #00A884;"/>
+                <TextField fx:id="nameField" editable="false"
+                          style="-fx-background-color: #202C33; -fx-text-fill: white;"/>
+                <Label fx:id="nameCharCount" style="-fx-text-fill: #8696A0; -fx-font-size: 12;"/>
+            </VBox>
+
+            <!-- Statut -->
+            <VBox spacing="5" alignment="CENTER" styleClass="profile-section">
+                <Label text="Statut" style="-fx-text-fill: #00A884;"/>
+                <TextArea fx:id="statusField" editable="false" wrapText="true"
+                         style="-fx-background-color: #202C33; -fx-text-fill: white;"/>
+                <Label fx:id="statusCharCount" style="-fx-text-fill: #8696A0; -fx-font-size: 12;"/>
+            </VBox>
+
+        </VBox>
+    </ScrollPane>
+
+</VBox> 
