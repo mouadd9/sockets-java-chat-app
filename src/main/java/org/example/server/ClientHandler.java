@@ -7,60 +7,49 @@ import java.io.PrintWriter;
 import java.net.Socket;
 
 import org.example.broker.MessageBroker;
+import org.example.dao.UserDAO;
 import org.example.dto.Credentials;
 import org.example.model.Message;
-import org.example.service.UserService;
+import org.example.model.User;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 public class ClientHandler implements Runnable {
-    private static final String AUTH_SUCCESS = "AUTH_SUCCESS";
-    private static final String AUTH_FAILED = "AUTH_FAILED";
 
-    private final Socket clientSocket; // socket used to communicate with the client
-
+    private final Socket clientSocket;
     private final MessageBroker broker;
-    private final UserService userService;
+    private final UserDAO userDAO;
     private final ObjectMapper mapper;
 
     private String clientEmail;
-
-    // input and output streams, to receive and send data over the socket
+    private long clientId;
     private PrintWriter output;
     private BufferedReader input;
-
     private volatile boolean isConnected;
 
     public ClientHandler(final Socket socket) {
-        this.clientSocket = socket; // this is the socket used to communicate with the client
+        this.clientSocket = socket;
         this.broker = MessageBroker.getInstance();
-        this.userService = new UserService(); // this is used to authenticate clients
-        this.mapper = new ObjectMapper().registerModule(new JavaTimeModule()); // this is used to serialize and deserialize messages
+        this.userDAO = new UserDAO();
+        this.mapper = new ObjectMapper().registerModule(new JavaTimeModule());
     }
 
-    // this runs when the client handler is created, its purpose is to set up the input and outpur streams 
-    // authenticate the client that initiated the connection
     @Override
     public void run() {
         try (
-            Socket socket = clientSocket;
-            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            PrintWriter out = new PrintWriter(socket.getOutputStream(), true)
-            ) {
+                Socket socket = clientSocket;
+                BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
             this.input = in;
             this.output = out;
             if (!authenticateUser()) {
                 sendResponse("AUTH_FAILED");
                 return;
             }
-
             sendResponse("AUTH_SUCCESS");
-            // here we register this client handler as a listener (that listens for incomming events or messages)
-            // now these messages are routed using the broker
             initializeSubscription();
             processMessages();
-
         } catch (final IOException e) {
             System.out.println("Client connection error: " + e.getMessage());
         } finally {
@@ -68,22 +57,19 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    // this function when called, expects the client to send JSON-encoded credentials, which it verifies using the UserService
     private boolean authenticateUser() throws IOException {
-        // here we deserealize credentials into a Credentials Object 
         final Credentials credentials = mapper.readValue(input.readLine(), Credentials.class);
-        // we use the service to authenticate the user
-        if (userService.authenticate(credentials.getEmail(), credentials.getPassword())) {
-            this.clientEmail = credentials.getEmail();
+        final User user = userDAO.findUserByEmail(credentials.getEmail());
+        if (user != null && user.getPasswordHash().equals(credentials.getPassword())) {
+            this.clientEmail = user.getEmail();
+            this.clientId = user.getId();
             return true;
         }
         return false;
     }
 
     private void initializeSubscription() throws IOException {
-        userService.setUserOnlineStatus(clientEmail, true);
-        // broker.unregisterListener(clientEmail);
-        broker.registerListener(clientEmail, this);
+        broker.registerListener(clientId, this);
         isConnected = true;
     }
 
@@ -92,11 +78,10 @@ public class ClientHandler implements Runnable {
         while (isConnected && (messageJson = input.readLine()) != null) {
             try {
                 final Message message = mapper.readValue(messageJson, Message.class);
-                
-                if ("CHAT".equals(message.getType())) {
-                    broker.sendMessage(message);
-                } else if ("LOGOUT".equals(message.getType())) {
+                if ("LOGOUT".equalsIgnoreCase(message.getContent())) {
                     terminateSession();
+                } else {
+                    broker.sendMessage(message);
                 }
             } catch (final IOException e) {
                 System.out.println("Invalid message format: " + messageJson);
@@ -108,7 +93,6 @@ public class ClientHandler implements Runnable {
         output.println(mapper.writeValueAsString(message));
     }
 
-    // this sends a response to the client associated to this client handler
     private void sendResponse(final String response) {
         output.println(response);
     }
@@ -119,12 +103,7 @@ public class ClientHandler implements Runnable {
 
     private void cleanup() {
         if (clientEmail != null) {
-            try {
-                broker.unregisterListener(clientEmail);
-                userService.setUserOnlineStatus(clientEmail, false);
-            } catch (final IOException e) {
-                System.err.println("Error setting user offline status: " + e.getMessage());
-            }
+            broker.unregisterListener(clientId);
         }
     }
 }

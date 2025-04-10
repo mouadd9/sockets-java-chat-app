@@ -3,6 +3,9 @@ package org.example.server;
 import java.net.ServerSocket;
 import java.net.Socket;
 
+import org.example.dao.UserDAO;
+import org.example.model.User;
+
 public class ChatServer {
     private static final int PORT = 5000;
     public static void main(final String[] args) throws Exception {

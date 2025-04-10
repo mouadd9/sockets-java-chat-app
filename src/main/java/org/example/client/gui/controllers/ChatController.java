@@ -71,7 +71,8 @@ public class ChatController {
     }
 
     // this function is called when we first create and cnofigure the controller
-    // it sets dependencies, and somehow gets incoming messages that were received when authenticating
+    // it sets dependencies, and somehow gets incoming messages that were received
+    // when authenticating
     public void initData(final ChatService chatService, final String userEmail) {
         this.chatService = chatService;
         this.userEmail = userEmail;
@@ -93,7 +94,7 @@ public class ChatController {
         }
 
         try {
-            final Message message = new Message(userEmail, selectedContact, content);
+            final Message message = chatService.createDirectMessage(userEmail, selectedContact, content);
             chatService.sendMessage(message);
             messageField.clear();
 
@@ -140,10 +141,11 @@ public class ChatController {
             final boolean removed = chatService.removeContact(userEmail, selectedContact);
             if (removed) {
                 contacts.remove(selectedContact);
-                // Nettoyer la conversation affichée
                 chatHistoryContainer.getChildren().clear();
-                // Supprimer la conversation persistée localement
-                localRepo.removeConversation(userEmail, selectedContact);
+                // Conversion des emails en IDs et appel de la méthode mise à jour
+                final long myId = chatService.getCurrentUserId();
+                final long contactId = chatService.getUserId(selectedContact);
+                localRepo.removeConversation(userEmail, myId, contactId);
                 setStatus("Contact et conversation supprimés: " + selectedContact);
                 selectedContact = null;
             } else {
@@ -192,76 +194,78 @@ public class ChatController {
     private void loadConversation(final String contactEmail) {
         chatHistoryContainer.getChildren().clear();
 
-        // Charger l'historique local
         try {
             final List<Message> localMessages = localRepo.loadLocalMessages(userEmail);
-            // Filtrer uniquement les messages correspondant à la conversation
+            final long myId = chatService.getCurrentUserId();
+            final long contactId = chatService.getUserId(contactEmail);
+
+            // Filtrer uniquement les messages de la conversation entre l'utilisateur et le
+            // contact
             localMessages.stream()
-                    .filter(m -> (m.getSenderEmail().equals(userEmail) && m.getReceiverEmail().equals(contactEmail)) ||
-                            (m.getSenderEmail().equals(contactEmail) && m.getReceiverEmail().equals(userEmail)))
+                    .filter(m -> (m.getSenderUserId() == myId && m.getReceiverUserId() != null
+                            && m.getReceiverUserId().equals(contactId))
+                            || (m.getSenderUserId() == contactId && m.getReceiverUserId() != null
+                                    && m.getReceiverUserId().equals(myId)))
                     .forEach(this::addMessageToChat);
         } catch (final IOException e) {
             setStatus("Erreur lors du chargement de l'historique local : " + e.getMessage());
         }
-
-        // Optionnel : vous pouvez également synchroniser avec le serveur pour mettre à
-        // jour l'historique
     }
 
     private void handleIncomingMessage(final Message message) {
         Platform.runLater(() -> {
-            // Si aucun contact n'est sélectionné, utiliser l'autre partie du message
-            // pour définir la conversation courante.
+            String senderEmail = "";
+            String receiverEmail = "";
+            try {
+                senderEmail = chatService.getUserEmail(message.getSenderUserId());
+                if (message.getReceiverUserId() != null) {
+                    receiverEmail = chatService.getUserEmail(message.getReceiverUserId());
+                }
+            } catch (final IOException e) {
+                setStatus("Erreur lors de la récupération de l'email de l'utilisateur: " + e.getMessage());
+                return;
+            }
+
+            // Si aucun contact n'est sélectionné, déterminer celui-ci selon l'expéditeur et
+            // le destinataire.
             if (selectedContact == null) {
-                selectedContact = message.getSenderEmail().equals(userEmail)
-                        ? message.getReceiverEmail()
-                        : message.getSenderEmail();
+                selectedContact = senderEmail.equals(userEmail) ? receiverEmail : senderEmail;
                 contactListView.getSelectionModel().select(selectedContact);
                 setStatus("Conversation chargée avec " + selectedContact);
             }
 
-            // Afficher le message s'il appartient à la conversation active
+            // Afficher le message uniquement s'il appartient à la conversation active.
             if (selectedContact != null &&
-                    (message.getSenderEmail().equals(selectedContact) ||
-                            message.getReceiverEmail().equals(selectedContact))) {
+                    (senderEmail.equals(selectedContact) || receiverEmail.equals(selectedContact))) {
                 addMessageToChat(message);
             }
 
-            // Enregistrer localement le message pour avoir un historique hors ligne
+            // Enregistrer le message en local.
             try {
                 localRepo.addLocalMessage(userEmail, message);
             } catch (final IOException e) {
                 System.err.println("Erreur de sauvegarde locale : " + e.getMessage());
             }
 
-            // Mise à jour des contacts si nécessaire
-            final String otherUser = message.getSenderEmail().equals(userEmail) ? message.getReceiverEmail()
-                    : message.getSenderEmail();
+            // Mise à jour des contacts si nécessaire.
+            final String otherUser = senderEmail.equals(userEmail) ? receiverEmail : senderEmail;
             if (!contacts.contains(otherUser)) {
                 contacts.add(otherUser);
             }
 
             setStatus("Nouveau message reçu");
-
-            // Envoyer l'accusé de réception
-            try {
-                chatService.acknowledgeMessage(message.getId());
-            } catch (final IOException e) {
-                System.err.println("Failed to acknowledge message: " + e.getMessage());
-            }
         });
     }
 
     private void addMessageToChat(final Message message) {
-        final boolean isMine = message.getSenderEmail().equals(userEmail);
+        final boolean isMine = message.getSenderUserId() == chatService.getCurrentUserId();
+        final String senderDisplay = isMine ? userEmail : selectedContact; // pour l'affichage si besoin
 
-        // Créer une boîte pour le message
         final HBox messageBox = new HBox();
         messageBox.setMaxWidth(chatHistoryContainer.getWidth() * 0.8);
         messageBox.setPadding(new Insets(5));
         messageBox.setAlignment(isMine ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
 
-        // Contenu du message
         final VBox messageContent = new VBox();
         messageContent.setMaxWidth(chatHistoryContainer.getWidth() * 0.7);
         messageContent.setPadding(new Insets(10));
@@ -271,7 +275,6 @@ public class ChatController {
         final Label contentLabel = new Label(message.getContent());
         contentLabel.setWrapText(true);
 
-        // Afficher l'heure et le status du message
         final String statusDisplay = message.getTimestamp().format(timeFormatter)
                 + " - " + (message.getStatus() != null ? message.getStatus() : "N/A");
         final Label statusLabel = new Label(statusDisplay);
@@ -280,10 +283,8 @@ public class ChatController {
         messageContent.getChildren().addAll(contentLabel, statusLabel);
         messageBox.getChildren().add(messageContent);
 
-        // Ajouter le message à l'historique
         Platform.runLater(() -> {
             chatHistoryContainer.getChildren().add(messageBox);
-            // Faire défiler vers le bas pour voir le nouveau message
             chatHistoryContainer.heightProperty().addListener(observable -> chatHistoryContainer.layout());
         });
     }

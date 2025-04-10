@@ -6,15 +6,16 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ConnectException;
 import java.net.Socket;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Consumer;
 
+import org.example.dao.ContactDAO;
+import org.example.dao.MessageDAO;
+import org.example.dao.UserDAO;
 import org.example.dto.Credentials;
+import org.example.model.Contact;
 import org.example.model.Message;
 import org.example.model.User;
-import org.example.repository.JsonMessageRepository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -29,23 +30,24 @@ public class ChatService {
     private String userEmail;
     private final ObjectMapper objectMapper;
     private Consumer<Message> messageConsumer;
-    private final JsonMessageRepository messageRepository;
-    private final UserService userService;
-
     private Thread listenerThread;
     private boolean isRunning = false;
 
+    // Instances DAO et persistance locale
+    private final MessageDAO messageDAO;
+    private final UserDAO userDAO;
+    private final ContactDAO contactDAO;
+
     public ChatService() {
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
-        this.messageRepository = new JsonMessageRepository();
-        this.userService = new UserService();
+        this.messageDAO = new MessageDAO();
+        this.userDAO = new UserDAO();
+        this.contactDAO = new ContactDAO();
     }
 
-    // method that establishes connection to the server socket, for further communication.
     public boolean connect(final Credentials credentials) throws IOException {
         try {
-            // Se connecter au serveur
-            System.out.println("Tentative de connexion au serveur " + SERVER_ADDRESS + ":" + SERVER_PORT);
+            System.out.println("Connexion au serveur " + SERVER_ADDRESS + ":" + SERVER_PORT);
             socket = new Socket(SERVER_ADDRESS, SERVER_PORT);
             out = new PrintWriter(socket.getOutputStream(), true);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -79,13 +81,11 @@ public class ChatService {
     }
 
     public void disconnect() throws IOException {
-        // Envoyer un message explicite de déconnexion
+        // Envoi d'un message de déconnexion (exemple simplifié)
         final Message logoutMsg = new Message();
-        logoutMsg.setType("LOGOUT");
-        logoutMsg.setSenderEmail(userEmail);
-        sendMessage(logoutMsg);
+        logoutMsg.setSenderUserId(getCurrentUserId());
+        out.println(objectMapper.writeValueAsString(logoutMsg));
 
-        // Fermer les connexions
         if (out != null)
             out.close();
         if (in != null)
@@ -93,75 +93,114 @@ public class ChatService {
         if (socket != null)
             socket.close();
 
-        // Réinitialiser l'état
         userEmail = null;
         messageConsumer = null;
-
+        isRunning = false;
         System.out.println("Déconnexion complète");
+    }
+
+    public long getCurrentUserId() {
+        try {
+            final User currentUser = userDAO.findUserByEmail(userEmail);
+            return currentUser != null ? currentUser.getId() : -1;
+        } catch (final Exception e) {
+            return -1;
+        }
+    }
+
+    public long getUserId(final String email) throws IOException {
+        final User user = userDAO.findUserByEmail(email);
+        if(user == null) {
+            throw new IOException("Utilisateur non trouvé");
+        }
+        return user.getId();
+    }
+
+    public String getUserEmail(final long userId) throws IOException {
+        final User user = userDAO.findUserById(userId);
+        if (user == null) {
+            throw new IOException("Utilisateur non trouvé pour id " + userId);
+        }
+        return user.getEmail();
+    }
+
+    public Message createDirectMessage(final String senderEmail, final String receiverEmail, final String content)
+            throws IOException {
+        final User sender = userDAO.findUserByEmail(senderEmail);
+        final User receiver = userDAO.findUserByEmail(receiverEmail);
+        if (sender == null || receiver == null) {
+            throw new IOException("Utilisateur non trouvé");
+        }
+        return Message.newDirectMessage(sender.getId(), receiver.getId(), content);
     }
 
     public boolean sendMessage(final Message message) throws IOException {
         if (socket == null || socket.isClosed() || out == null) {
             throw new IOException("Non connecté au serveur");
         }
-        // Ne modifier le type que si ce n'est pas un message spécial (comme LOGOUT)
-        if (!"LOGOUT".equals(message.getType())) {
-            message.setType("CHAT");
-        }
+        // Envoi du message via le socket
         final String jsonMessage = objectMapper.writeValueAsString(message);
         out.println(jsonMessage);
+
+        // Persistance du message côté serveur et en local pour un historique hors ligne
+        messageDAO.createMessage(message);
         return true;
     }
 
-    public void acknowledgeMessage(final String messageId) throws IOException {
-        messageRepository.deleteMessage(messageId);
+    // Récupère la conversation entre deux utilisateurs en convertissant leurs
+    // emails en IDs
+    public List<Message> getConversation(final String user1Email, final String user2Email) throws IOException {
+        final User user1 = userDAO.findUserByEmail(user1Email);
+        final User user2 = userDAO.findUserByEmail(user2Email);
+
+        if (user1 == null || user2 == null) {
+            throw new IOException("Utilisateur non trouvé");
+        }
+        return messageDAO.getConversation(user1.getId(), user2.getId());
     }
 
     public List<String> getContacts(final String userEmail) throws IOException {
-        final Optional<User> optionalUser = userService.getUserByEmail(userEmail);
-        return optionalUser.map(User::getContacts).orElse(new ArrayList<>());
+        final User user = userDAO.findUserByEmail(userEmail);
+        if (user == null) {
+            throw new IOException("Utilisateur non trouvé");
+        }
+        return contactDAO.getContactsByUserId(user.getId());
     }
 
     public boolean addContact(final String userEmail, final String contactEmail) throws IOException {
-        return userService.addContact(userEmail, contactEmail);
+        final User sender = userDAO.findUserByEmail(userEmail);
+        final User contact = userDAO.findUserByEmail(contactEmail);
+        if (sender == null || contact == null) {
+            throw new IllegalArgumentException("Utilisateur non trouvé");
+        }
+        final Contact newContact = new Contact(sender.getId(), contact.getId());
+        contactDAO.createContact(newContact);
+        return true;
     }
 
     public boolean removeContact(final String userEmail, final String contactEmail) throws IOException {
-        return userService.removeContact(userEmail, contactEmail);
-    }
-
-    public List<Message> getConversation(final String user1Email, final String user2Email) throws IOException {
-        // Utiliser la méthode du repository pour récupérer la conversation réelle
-        return messageRepository.getConversation(user1Email, user2Email);
+        final User sender = userDAO.findUserByEmail(userEmail);
+        final User contact = userDAO.findUserByEmail(contactEmail);
+        if (sender == null || contact == null) {
+            throw new IllegalArgumentException("Utilisateur non trouvé");
+        }
+        return contactDAO.deleteContact(sender.getId(), contact.getId());
     }
 
     public void setMessageConsumer(final Consumer<Message> consumer) {
         this.messageConsumer = consumer;
     }
 
-    // i dont quite get how this part functions, i know that we receive messages in the Socket input but i actually dont know how are handling them
     private void startMessageListener() {
         isRunning = true;
-
         listenerThread = new Thread(() -> {
             try {
                 String jsonMessage;
                 while (isRunning && (jsonMessage = in.readLine()) != null) {
                     try {
                         final Message message = objectMapper.readValue(jsonMessage, Message.class);
-
-                        if ("LOGOUT_CONFIRM".equals(message.getType())) {
-                            break;
-                        }
-
-                        if ("CHAT".equals(message.getType())) {
-                            // Acquitter automatiquement la réception du message
-                            acknowledgeMessage(message.getId());
-
-                            // Transmettre le message au consommateur
-                            if (messageConsumer != null) {
-                                messageConsumer.accept(message); // !!
-                            }
+                        if (messageConsumer != null) {
+                            messageConsumer.accept(message);
                         }
                     } catch (final Exception e) {
                         System.err.println("Erreur lors du traitement du message: " + e.getMessage());
@@ -175,7 +214,6 @@ public class ChatService {
                 isRunning = false;
             }
         });
-
         listenerThread.setDaemon(true);
         listenerThread.start();
     }

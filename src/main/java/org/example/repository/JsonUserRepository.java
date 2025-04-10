@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import org.example.model.User;
+import org.example.model.User_old;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.CollectionType;
@@ -26,20 +26,20 @@ public class JsonUserRepository {
     }
 
     // this method takes in a list of users of type User
-    public void saveUsers(final List<User> users) throws IOException {
+    public void saveUsers(final List<User_old> users) throws IOException {
         // this method WriteValues takes the objects in the array users and writes them in the udersFile
         objectMapper.writeValue(usersFile, users);
     }
 
     // this method reads Users from the json file and returns them
-    public List<User> loadUsers() throws IOException {
+    public List<User_old> loadUsers() throws IOException {
         // if the userFIle is deleted we return an empty list
         if (!usersFile.exists()) {
             throw new IOException("utilisateurs.json file not found in data directory");
         }
         // here we Create a type definition for List<User>
         final CollectionType listType = objectMapper.getTypeFactory()
-            .constructCollectionType(ArrayList.class, User.class);
+            .constructCollectionType(ArrayList.class, User_old.class);
 
         // here we Read and convert JSON back to Java objects
         return objectMapper.readValue(usersFile, listType);
@@ -47,7 +47,7 @@ public class JsonUserRepository {
 
     // this method calls loadUsers() and then uses streams to filter out only the users with a certain email
     // it returns an optional that can have a user or cannot have anything 
-    public Optional<User> findByEmail(final String email) throws IOException {
+    public Optional<User_old> findByEmail(final String email) throws IOException {
         return loadUsers() // get list of users ArrayList<Users>
             .stream()  // convert to stream
             .filter(user -> user.getEmail().equals(email)) // filter users
@@ -64,15 +64,15 @@ public class JsonUserRepository {
 
 
 
-    public void saveUser(final User user) throws IOException {
-        final List<User> users = loadUsers();
+    public void saveUser(final User_old user) throws IOException {
+        final List<User_old> users = loadUsers();
         users.removeIf(u -> u.getEmail().equals(user.getEmail()));
         users.add(user);
         saveUsers(users);
     }
 
     public void updateUserStatus(final String email, final boolean isOnline) throws IOException {
-        final List<User> users = loadUsers();
+        final List<User_old> users = loadUsers();
         users.stream()
             .filter(u -> u.getEmail().equals(email))
             .findFirst()

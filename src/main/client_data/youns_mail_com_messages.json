@@ -1,0 +1,25 @@
+[ {
+  "id" : 0,
+  "senderUserId" : 3,
+  "receiverUserId" : 4,
+  "groupId" : null,
+  "content" : "hi",
+  "timestamp" : [ 2025, 4, 11, 0, 22, 5, 511915000 ],
+  "status" : "SENT"
+}, {
+  "id" : 0,
+  "senderUserId" : 3,
+  "receiverUserId" : 4,
+  "groupId" : null,
+  "content" : "salam",
+  "timestamp" : [ 2025, 4, 11, 0, 23, 58, 442823000 ],
+  "status" : "SENT"
+}, {
+  "id" : 9,
+  "senderUserId" : 3,
+  "receiverUserId" : 4,
+  "groupId" : null,
+  "content" : "wa fin",
+  "timestamp" : [ 2025, 4, 11, 0, 24, 20 ],
+  "status" : "QUEUED"
+} ]

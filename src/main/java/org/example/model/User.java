@@ -1,92 +1,65 @@
 package org.example.model;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import com.fasterxml.jackson.annotation.JsonProperty;
+import java.time.LocalDateTime;
+import java.util.Objects;
 
 public class User {
-    private String email;        // PK
-    private String displayName;  // user name for display
-    private String password;     // hashed password
-    
-    @JsonProperty("online")
-    private boolean isOnline;    // user online status
-    
-    @JsonProperty("contactEmails")
-    private List<String> contacts; // sera mappé depuis "contactEmails" du JSON
-    
-    // Constructeur par défaut pour Jackson
+
+    private long id;
+    private String email; // Unique
+    private String displayName;
+    private String passwordHash; // Important: C'est un HASH !
+    private boolean isOnline;
+    private LocalDateTime createdAt;
+    private LocalDateTime lastLoginAt; // Peut être null
+
+    // Constructeur par défaut
     public User() {
+        this.createdAt = LocalDateTime.now();
         this.isOnline = false;
-        this.contacts = new ArrayList<>();
     }
-    
-    public User(final String email, final String displayName, final String password) {
+
+    // Constructeur pour la création initiale (avant sauvegarde)
+    public User(final String email, final String displayName, final String passwordHash) {
         this();
         this.email = email;
         this.displayName = displayName;
-        this.password = password;
+        this.passwordHash = passwordHash;
     }
 
-    // Getters and Setters
-    public String getEmail() {
-        return email;
+    // ...existing getters and setters...
+    public long getId() { return id; }
+    public void setId(final long id) { this.id = id; }
+    public String getEmail() { return email; }
+    public void setEmail(final String email) { this.email = email; }
+    public String getDisplayName() { return displayName; }
+    public void setDisplayName(final String displayName) { this.displayName = displayName; }
+    public String getPasswordHash() { return passwordHash; }
+    public void setPasswordHash(final String passwordHash) { this.passwordHash = passwordHash; }
+    public boolean isOnline() { return isOnline; }
+    public void setOnline(final boolean online) { isOnline = online; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(final LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public LocalDateTime getLastLoginAt() { return lastLoginAt; }
+    public void setLastLoginAt(final LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+
+    // ...equals, hashCode, toString...
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        final User user = (User) o;
+        if (id > 0 && user.id > 0) return id == user.id;
+        return Objects.equals(email, user.email);
     }
 
-    public void setEmail(final String email) {
-        this.email = email;
-    }
-
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    public void setDisplayName(final String displayName) {
-        this.displayName = displayName;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(final String password) {
-        this.password = password;
-    }
-
-    public boolean isOnline() {
-        return isOnline;
-    }
-
-    public void setOnline(final boolean online) {
-        isOnline = online;
-    }
-
-    public List<String> getContacts() {
-        return contacts;
-    }
-
-    public void setContacts(final List<String> contacts) {
-        this.contacts = contacts;
-    }
-    
-    public void addContact(final String contactEmail) {
-        if (!contacts.contains(contactEmail)) {
-            contacts.add(contactEmail);
-        }
-    }
-    
-    public boolean removeContact(final String contactEmail) {
-        return contacts.remove(contactEmail);
+    @Override
+    public int hashCode() {
+        return Objects.hash(id > 0 ? id : email);
     }
 
     @Override
     public String toString() {
-        return "User{" +
-                "email='" + email + '\'' +
-                ", displayName='" + displayName + '\'' +
-                ", isOnline=" + isOnline +
-                ", contactsCount=" + contacts.size() +
-                '}';
+        return "User{" + "id=" + id + ", email='" + email + '\'' + ", displayName='" + displayName + '\'' + '}';
     }
 }

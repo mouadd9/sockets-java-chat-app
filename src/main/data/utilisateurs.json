@@ -1,1 +1,16 @@
-[{"email":"youns@test.com","displayName":"youns","password":"test","online":false,"contactEmails":[]},{"email":"kihl@test.com","displayName":"kihl","password":"test","online":true,"contactEmails":[]}]
+[
+    {
+        "email": "youns@test.com",
+        "displayName": "youns",
+        "password": "test",
+        "online": false,
+        "contactEmails": []
+    },
+    {
+        "email": "kihl@test.com",
+        "displayName": "kihl",
+        "password": "test",
+        "online": true,
+        "contactEmails": []
+    }
+]

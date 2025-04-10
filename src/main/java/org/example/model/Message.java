@@ -2,130 +2,88 @@ package org.example.model;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
-import java.util.UUID;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import org.example.model.enums.MessageStatus;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 public class Message {
-    private String id; // PK
-    private String senderEmail; // FK
-    private String receiverEmail; // FK
+
+    private long id;
+    private long senderUserId;   // FK vers User.id
+    private Long receiverUserId; // FK vers User.id (Nullable)
+    private Long groupId;        // FK vers Group.id (Nullable)
     private String content;
-    private LocalDateTime timestamp; // Creation date !!
+    private LocalDateTime timestamp;
+    private MessageStatus status; // Utilise l'Enum MessageStatus
 
-    @JsonProperty("read")
-    private boolean isRead;
-    private String type; // "CHAT", "LOGOUT", etc.
-    private String status; // PENDING, QUEUED, DELIVERED, ACKNOWLEDGED, EXPIRED
-
-    // Constructeur par défaut pour Jackson
+    // Constructeur par défaut
     public Message() {
-        this.id = UUID.randomUUID().toString();
         this.timestamp = LocalDateTime.now();
-        this.isRead = false;
-        this.status = "PENDING";
+        this.status = MessageStatus.SENT;
     }
 
-    public Message(final String senderEmail, final String receiverEmail, final String content) {
-        this();
-        this.senderEmail = senderEmail;
-        this.receiverEmail = receiverEmail;
-        this.content = content;
-        this.type = "CHAT";
+    // Méthode factory pour créer un message direct
+    public static Message newDirectMessage(final long senderUserId, final long receiverUserId, final String content) {
+        final Message msg = new Message();
+        msg.senderUserId = senderUserId;
+        msg.receiverUserId = receiverUserId;
+        msg.content = content;
+        return msg;
     }
 
-    // Getters and Setters
-    public String getId() {
-        return id;
+    // Méthode factory pour créer un message de groupe
+    public static Message newGroupMessage(final long senderUserId, final long groupId, final String content) {
+        final Message msg = new Message();
+        msg.senderUserId = senderUserId;
+        msg.groupId = groupId;
+        msg.content = content;
+        return msg;
     }
 
-    public void setId(final String id) {
-        this.id = id;
+    public long getId() { return id; }
+    public void setId(final long id) { this.id = id; }
+    public long getSenderUserId() { return senderUserId; }
+    public void setSenderUserId(final long senderUserId) { this.senderUserId = senderUserId; }
+    public Long getReceiverUserId() { return receiverUserId; }
+    public void setReceiverUserId(final Long receiverUserId) { this.receiverUserId = receiverUserId; }
+    public Long getGroupId() { return groupId; }
+    public void setGroupId(final Long groupId) { this.groupId = groupId; }
+    public String getContent() { return content; }
+    public void setContent(final String content) { this.content = content; }
+    public LocalDateTime getTimestamp() { return timestamp; }
+    public void setTimestamp(final LocalDateTime timestamp) { this.timestamp = timestamp; }
+    public MessageStatus getStatus() { return status; }
+    public void setStatus(final MessageStatus status) { this.status = status; }
+
+    @JsonIgnore
+    public boolean isDirectMessage() {
+        return receiverUserId != null && groupId == null;
     }
 
-    public String getSenderEmail() {
-        return senderEmail;
-    }
-
-    public void setSenderEmail(final String senderEmail) {
-        this.senderEmail = senderEmail;
-    }
-
-    public String getReceiverEmail() {
-        return receiverEmail;
-    }
-
-    public void setReceiverEmail(final String receiverEmail) {
-        this.receiverEmail = receiverEmail;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(final String content) {
-        this.content = content;
-    }
-
-    public LocalDateTime getTimestamp() {
-        return timestamp;
-    }
-
-    public void setTimestamp(final LocalDateTime timestamp) {
-        this.timestamp = timestamp;
-    }
-
-    public boolean isRead() {
-        return isRead;
-    }
-
-    public void setRead(final boolean read) {
-        this.isRead = read;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setType(final String type) {
-        this.type = type;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(final String status) {
-        this.status = status;
+    @JsonIgnore
+    public boolean isGroupMessage() {
+        return groupId != null && receiverUserId == null;
     }
 
     @Override
-    public String toString() {
-        return "Message{" +
-                "id='" + id + '\'' +
-                ", senderEmail='" + senderEmail + '\'' +
-                ", receiverEmail='" + receiverEmail + '\'' +
-                ", content='"
-                + (content != null ? content.substring(0, Math.min(content.length(), 20)) + "..." : "null") + '\'' +
-                ", timestamp=" + timestamp +
-                ", isRead=" + isRead +
-                ", type='" + type + '\'' +
-                ", status='" + status + '\'' +
-                '}';
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (!(o instanceof Message))
-            return false;
-        Message message = (Message) o;
-        return Objects.equals(id, message.id);
+    public boolean equals(final Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        final Message message = (Message) o;
+        return id > 0 && id == message.id;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(id);
+    }
+
+    @Override
+    public String toString() {
+        return "Message{" + "id=" + id + ", senderUserId=" + senderUserId +
+               (isDirectMessage() ? ", receiverUserId=" + receiverUserId : "") +
+               (isGroupMessage() ? ", groupId=" + groupId : "") +
+               ", status=" + status + ", timestamp=" + timestamp + '}';
     }
 }

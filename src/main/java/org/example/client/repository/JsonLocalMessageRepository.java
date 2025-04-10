@@ -10,6 +10,7 @@ import java.util.List;
 
 import org.example.model.Message;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.type.CollectionType;
@@ -27,7 +28,9 @@ public class JsonLocalMessageRepository {
 
     public JsonLocalMessageRepository() {
         this.objectMapper = new ObjectMapper();
+        // Register the JavaTimeModule for date-time support
         this.objectMapper.registerModule(new JavaTimeModule());
+        // Pretty-print output
         this.objectMapper.configure(SerializationFeature.INDENT_OUTPUT, true);
         ensureLocalFolderExists();
     }
@@ -86,11 +89,14 @@ public class JsonLocalMessageRepository {
     /**
      * Supprime un message de l'historique local pour l'utilisateur.
      */
-    public void removeConversation(final String userEmail, final String contactEmail) throws IOException {
+    public void removeConversation(final String userEmail, final long myId, final long contactId) throws IOException {
         final List<Message> messages = loadLocalMessages(userEmail);
-        messages.removeIf(m ->
-                (m.getSenderEmail().equals(userEmail) && m.getReceiverEmail().equals(contactEmail))
-             || (m.getSenderEmail().equals(contactEmail) && m.getReceiverEmail().equals(userEmail)));
+        messages.removeIf(m -> (m.getSenderUserId() == myId &&
+                                 m.getReceiverUserId() != null &&
+                                 m.getReceiverUserId() == contactId)
+                             || (m.getSenderUserId() == contactId &&
+                                 m.getReceiverUserId() != null &&
+                                 m.getReceiverUserId() == myId));
         saveLocalMessages(userEmail, messages);
     }
 }
