@@ -149,4 +149,13 @@ public class MessageDAO {
         }
         return messages;
     }
+    public boolean deleteMessage(final long messageId) throws SQLException {
+        final String sql = "DELETE FROM messages WHERE id = ?";
+        try (Connection conn = JDBCUtil.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, messageId);
+            int affectedRows = stmt.executeUpdate();
+            return affectedRows > 0;
+        }
+    }
 }

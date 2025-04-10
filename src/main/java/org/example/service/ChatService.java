@@ -141,9 +141,7 @@ public class ChatService {
         // Envoi du message via le socket
         final String jsonMessage = objectMapper.writeValueAsString(message);
         out.println(jsonMessage);
-
-        // Persistance du message côté serveur et en local pour un historique hors ligne
-        messageDAO.createMessage(message);
+        
         return true;
     }
 

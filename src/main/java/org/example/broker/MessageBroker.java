@@ -116,6 +116,7 @@ public class MessageBroker {
                 if (tryDeliver(message)) {
                     try {
                         messages.poll();
+                        messageDAO.deleteMessage(message.getId());
                     } catch (final Exception e) {
                         System.err.println("Delivery failed, keeping message in queue");
                         break;
