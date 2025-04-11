@@ -4,9 +4,11 @@ import java.io.IOException;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
+import org.example.client.gui.service.ChatService;
 import org.example.client.repository.JsonLocalMessageRepository;
+import org.example.model.Group;
 import org.example.model.Message;
-import org.example.service.ChatService;
+import org.example.service.GroupService;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -19,6 +21,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
@@ -34,6 +37,9 @@ public class ChatController {
     private ListView<String> contactListView;
 
     @FXML
+    private ListView<Group> groupListView; // Utilisation d'un ListView de type Group
+
+    @FXML
     private TextField newContactField;
 
     @FXML
@@ -45,17 +51,35 @@ public class ChatController {
     @FXML
     private Label statusLabel;
 
+    @FXML
+    private TextField groupNameField; // zone de saisie pour le nom du groupe
+
+    @FXML
+    private TextField memberEmailField; // zone de saisie pour l'email du membre à ajouter
+
     private ChatService chatService;
     private String userEmail;
     private String selectedContact;
 
     private final ObservableList<String> contacts = FXCollections.observableArrayList();
+    private final ObservableList<Group> groups = FXCollections.observableArrayList(); // Déclaration de l'ObservableList pour les groupes
     private static final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
     private final JsonLocalMessageRepository localRepo = new JsonLocalMessageRepository();
+    private final GroupService groupService = new GroupService();
 
     @FXML
     public void initialize() {
         contactListView.setItems(contacts);
+        groupListView.setItems(groups);
+
+        // Configuration du CellFactory pour afficher uniquement le nom du groupe
+        groupListView.setCellFactory(lv -> new ListCell<Group>() {
+            @Override
+            protected void updateItem(final Group item, final boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? "" : item.getName());
+            }
+        });
 
         // Configurer le clic sur un contact
         contactListView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
@@ -63,6 +87,14 @@ public class ChatController {
                 selectedContact = newVal;
                 loadConversation(selectedContact);
                 setStatus("Conversation chargée avec " + selectedContact);
+            }
+        });
+
+        // Ajouter le listener pour les groupes
+        groupListView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null) {
+                loadGroupConversation(newVal);
+                setStatus("Conversation de groupe chargée : " + newVal.getName());
             }
         });
 
@@ -83,27 +115,52 @@ public class ChatController {
 
         // Charger les contacts
         loadContacts();
+
+        // Charger les groupes
+        loadGroups();
+    }
+
+    private void loadGroups() {
+        try {
+            final List<Group> groupList = chatService.getGroupsForUser(userEmail);
+            Platform.runLater(() -> {
+                groups.clear();
+                groups.addAll(groupList);
+                if (!groups.isEmpty()) {
+                    groupListView.getSelectionModel().select(0);
+                }
+            });
+        } catch (final IOException e) {
+            setStatus("Erreur lors du chargement des groupes : " + e.getMessage());
+        }
     }
 
     @FXML
     private void handleSendMessage(final ActionEvent event) {
         final String content = messageField.getText().trim();
-
-        if (content.isEmpty() || selectedContact == null) {
+        if (content.isEmpty()) {
             return;
         }
 
         try {
-            final Message message = chatService.createDirectMessage(userEmail, selectedContact, content);
-            chatService.sendMessage(message);
+            Message message;
+            if (!groupListView.getSelectionModel().isEmpty()) {
+                final Group selectedGroup = groupListView.getSelectionModel().getSelectedItem();
+                message = chatService.createGroupMessage(userEmail, selectedGroup.getId(), content);
+                chatService.sendGroupMessage(message);
+            } else if (selectedContact != null) {
+                // Envoi de message direct
+                message = chatService.createDirectMessage(userEmail, selectedContact, content);
+                chatService.sendMessage(message);
+            } else {
+                return;
+            }
             messageField.clear();
-
-            // Ajouter le message à la conversation
             addMessageToChat(message);
             setStatus("Message envoyé");
             localRepo.addLocalMessage(userEmail, message);
         } catch (final IOException e) {
-            setStatus("Erreur lors de l'envoi du message: " + e.getMessage());
+            setStatus("Erreur lors de l'envoi du message : " + e.getMessage());
         }
     }
 
@@ -171,6 +228,59 @@ public class ChatController {
             stage.centerOnScreen();
         } catch (final IOException e) {
             setStatus("Erreur lors de la déconnexion: " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void handleSelectGroup() {
+        final Group selectedGroup = groupListView.getSelectionModel().getSelectedItem();
+        if (selectedGroup != null) {
+            loadGroupConversation(selectedGroup);
+            setStatus("Conversation de groupe chargée : " + selectedGroup.getName());
+        }
+    }
+
+    @FXML
+    private void handleCreateGroup(final ActionEvent event) {
+        final String groupName = groupNameField.getText().trim();
+        if (groupName.isEmpty()) {
+            setStatus("Le nom du groupe est obligatoire");
+            return;
+        }
+        final long ownerId = chatService.getCurrentUserId();
+        final Group createdGroup = groupService.createGroup(groupName, ownerId);
+        if (createdGroup.getId() > 0) {
+            setStatus("Groupe créé : " + createdGroup.getName());
+            groups.add(createdGroup);
+            groupNameField.clear();
+        } else {
+            setStatus("Erreur lors de la création du groupe");
+        }
+    }
+
+    @FXML
+    private void handleAddMemberToGroup(final ActionEvent event) {
+        final String memberEmail = memberEmailField.getText().trim();
+        if (memberEmail.isEmpty()) {
+            setStatus("Veuillez entrer l'email du membre à ajouter");
+            return;
+        }
+        final Group selectedGroup = groupListView.getSelectionModel().getSelectedItem();
+        if (selectedGroup == null) {
+            setStatus("Veuillez sélectionner un groupe");
+            return;
+        }
+        try {
+            final long memberId = chatService.getUserId(memberEmail);
+            final boolean success = groupService.addMemberToGroup(selectedGroup.getId(), memberId);
+            if (success) {
+                setStatus("Membre ajouté avec succès");
+                memberEmailField.clear();
+            } else {
+                setStatus("Le membre est déjà présent ou l'ajout a échoué");
+            }
+        } catch (final IOException e) {
+            setStatus("Erreur lors de l'ajout du membre : " + e.getMessage());
         }
     }
 
@@ -291,5 +401,15 @@ public class ChatController {
 
     private void setStatus(final String status) {
         Platform.runLater(() -> statusLabel.setText(status));
+    }
+
+    private void loadGroupConversation(final Group group) {
+        chatHistoryContainer.getChildren().clear();
+        try {
+            final List<Message> groupMessages = localRepo.loadGroupMessages(userEmail, group.getId());
+            groupMessages.forEach(this::addMessageToChat);
+        } catch (final IOException e) {
+            setStatus("Erreur lors du chargement de l'historique de groupe : " + e.getMessage());
+        }
     }
 }

@@ -20,7 +20,7 @@
     <!-- Partie centrale avec la liste des contacts et la zone de chat -->
     <center>
         <SplitPane dividerPositions="0.3">
-            <!-- Liste des contacts -->
+            <!-- Liste des contacts et groupes -->
             <VBox spacing="10" style="-fx-padding: 10px;">
                 <Label text="Contacts" style="-fx-font-weight: bold;"/>
                 <ListView fx:id="contactListView" VBox.vgrow="ALWAYS"/>
@@ -28,6 +28,19 @@
                     <TextField fx:id="newContactField" promptText="Email du contact" HBox.hgrow="ALWAYS"/>
                     <Button text="+" onAction="#handleAddContact"/>
                     <Button text="-" onAction="#handleRemoveContact"/>
+                </HBox>
+                <!-- Nouvelle section pour les groupes -->
+                <Label text="Groupes" style="-fx-font-weight: bold; -fx-padding: 10 0 0 0;"/>
+                <ListView fx:id="groupListView" onMouseClicked="#handleSelectGroup" VBox.vgrow="ALWAYS"/>
+                <!-- Section de création de groupe -->
+                <HBox spacing="5">
+                    <TextField fx:id="groupNameField" promptText="Nom du groupe" HBox.hgrow="ALWAYS"/>
+                    <Button text="Créer Groupe" onAction="#handleCreateGroup"/>
+                </HBox>
+                <!-- Ajout d'un membre au groupe -->
+                <HBox spacing="5">
+                    <TextField fx:id="memberEmailField" promptText="Email du membre" HBox.hgrow="ALWAYS"/>
+                    <Button text="Ajouter Membre" onAction="#handleAddMemberToGroup"/>
                 </HBox>
             </VBox>
             

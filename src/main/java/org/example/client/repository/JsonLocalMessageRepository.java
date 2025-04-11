@@ -2,7 +2,6 @@ package org.example.client.repository;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -10,7 +9,6 @@ import java.util.List;
 
 import org.example.model.Message;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.type.CollectionType;
@@ -37,10 +35,10 @@ public class JsonLocalMessageRepository {
 
     private void ensureLocalFolderExists() {
         final Path folderPath = Paths.get(LOCAL_FOLDER);
-        if (!Files.exists(folderPath)) {
+        if (!folderPath.toFile().exists()) {
             try {
-                Files.createDirectories(folderPath);
-            } catch (final IOException e) {
+                folderPath.toFile().mkdirs();
+            } catch (final Exception e) {
                 System.err.println("Erreur lors de la création du dossier client_data : " + e.getMessage());
             }
         }
@@ -51,8 +49,7 @@ public class JsonLocalMessageRepository {
      */
     private String getUserFilePath(final String userEmail) {
         // Remplacer les caractères spéciaux pour créer un nom de fichier valide
-        final String fileName = userEmail.replaceAll("[^a-zA-Z0-9]", "_") + "_messages.json";
-        return LOCAL_FOLDER + File.separator + fileName;
+        return LOCAL_FOLDER + File.separator + userEmail.replace("@", "_at_") + "_messages.json";
     }
 
     /**
@@ -87,16 +84,29 @@ public class JsonLocalMessageRepository {
     }
 
     /**
+     * Retourne la conversation de groupe en filtrant les messages dont le groupId correspond
+     * au groupe passé.
+     */
+    public List<Message> loadGroupMessages(final String userEmail, final long groupId) throws IOException {
+        final List<Message> allMessages = loadLocalMessages(userEmail);
+        final List<Message> groupMessages = new ArrayList<>();
+        for (final Message msg : allMessages) {
+            if (msg.getGroupId() != null && msg.getGroupId() == groupId) {
+                groupMessages.add(msg);
+            }
+        }
+        return groupMessages;
+    }
+
+    /**
      * Supprime un message de l'historique local pour l'utilisateur.
      */
     public void removeConversation(final String userEmail, final long myId, final long contactId) throws IOException {
         final List<Message> messages = loadLocalMessages(userEmail);
-        messages.removeIf(m -> (m.getSenderUserId() == myId &&
-                                 m.getReceiverUserId() != null &&
-                                 m.getReceiverUserId() == contactId)
-                             || (m.getSenderUserId() == contactId &&
-                                 m.getReceiverUserId() != null &&
-                                 m.getReceiverUserId() == myId));
+        messages.removeIf(m ->
+            (m.getSenderUserId() == myId && m.getReceiverUserId() != null && m.getReceiverUserId() == contactId)
+            || (m.getSenderUserId() == contactId && m.getReceiverUserId() != null && m.getReceiverUserId() == myId)
+        );
         saveLocalMessages(userEmail, messages);
     }
 }

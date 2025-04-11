@@ -7,6 +7,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import org.example.dao.GroupDAO;
 import org.example.dao.MessageDAO;
 import org.example.model.Message;
 import org.example.model.enums.MessageStatus;
@@ -45,12 +46,29 @@ public class MessageBroker {
     }
 
     public void sendMessage(final Message message) {
-
-        final MessageQueue queue = userQueues.get(message.getReceiverUserId());
-        if (queue != null && queue.tryDeliver(message)) {
-            message.setStatus(MessageStatus.DELIVERED);
+        if (message.isGroupMessage()) {
+            // Récupérer les membres du groupe via GroupDAO
+            final GroupDAO groupDAO = new GroupDAO();
+            final List<Long> groupMemberIds = groupDAO.getMembersForGroup(message.getGroupId());
+            for (final Long memberId : groupMemberIds) {
+                // Ignorer l'expéditeur
+                if (memberId != message.getSenderUserId()) {
+                    final Message messageCopy = copyMessageForRecipient(message);
+                    final MessageQueue queue = getOrCreateQueue(memberId);
+                    if (queue != null && queue.tryDeliver(messageCopy)) {
+                        messageCopy.setStatus(MessageStatus.DELIVERED);
+                    } else {
+                        persistMessage(messageCopy);
+                    }
+                }
+            }
         } else {
-            persistMessage(message);
+            final MessageQueue queue = userQueues.get(message.getReceiverUserId());
+            if (queue != null && queue.tryDeliver(message)) {
+                message.setStatus(MessageStatus.DELIVERED);
+            } else {
+                persistMessage(message);
+            }
         }
     }
 
@@ -65,6 +83,15 @@ public class MessageBroker {
 
     private MessageQueue getOrCreateQueue(final long userId) {
         return userQueues.computeIfAbsent(userId, MessageQueue::new);
+    }
+
+    private Message copyMessageForRecipient(final Message originalMessage) {
+        final Message copy = new Message();
+        copy.setSenderUserId(originalMessage.getSenderUserId());
+        copy.setContent(originalMessage.getContent());
+        copy.setTimestamp(originalMessage.getTimestamp());
+        copy.setGroupId(originalMessage.getGroupId());
+        return copy;
     }
 
     private class MessageQueue {

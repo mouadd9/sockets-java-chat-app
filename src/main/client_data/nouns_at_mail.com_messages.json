@@ -1,0 +1,9 @@
+[ {
+  "id" : 0,
+  "senderUserId" : 4,
+  "receiverUserId" : null,
+  "groupId" : 1,
+  "content" : "wa tbarkalah",
+  "timestamp" : [ 2025, 4, 11, 1, 57, 53, 646316000 ],
+  "status" : "SENT"
+} ]

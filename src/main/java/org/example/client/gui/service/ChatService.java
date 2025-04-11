@@ -1,4 +1,4 @@
-package org.example.service;
+package org.example.client.gui.service;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -10,10 +10,12 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import org.example.dao.ContactDAO;
+import org.example.dao.GroupDAO;
 import org.example.dao.MessageDAO;
 import org.example.dao.UserDAO;
 import org.example.dto.Credentials;
 import org.example.model.Contact;
+import org.example.model.Group;
 import org.example.model.Message;
 import org.example.model.User;
 
@@ -37,6 +39,7 @@ public class ChatService {
     private final MessageDAO messageDAO;
     private final UserDAO userDAO;
     private final ContactDAO contactDAO;
+    private final GroupDAO groupDAO = new GroupDAO(); // Ajout du DAO de groupe
 
     public ChatService() {
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
@@ -134,6 +137,23 @@ public class ChatService {
         return Message.newDirectMessage(sender.getId(), receiver.getId(), content);
     }
 
+    public Message createGroupMessage(final String senderEmail, final long groupId, final String content) throws IOException {
+        final User sender = userDAO.findUserByEmail(senderEmail);
+        if(sender == null) {
+            throw new IOException("Utilisateur non trouvé pour email " + senderEmail);
+        }
+        return Message.newGroupMessage(sender.getId(), groupId, content);
+    }
+    
+    public boolean sendGroupMessage(final Message message) throws IOException {
+        if (socket == null || socket.isClosed() || out == null) {
+            throw new IOException("Non connecté au serveur");
+        }
+        final String jsonMessage = objectMapper.writeValueAsString(message);
+        out.println(jsonMessage);
+        return true;
+    }
+
     public boolean sendMessage(final Message message) throws IOException {
         if (socket == null || socket.isClosed() || out == null) {
             throw new IOException("Non connecté au serveur");
@@ -214,5 +234,14 @@ public class ChatService {
         });
         listenerThread.setDaemon(true);
         listenerThread.start();
+    }
+
+    // Nouvelle méthode pour récupérer les groupes d'un utilisateur
+    public List<Group> getGroupsForUser(final String userEmail) throws IOException {
+        final User sender = userDAO.findUserByEmail(userEmail);
+        if (sender == null) {
+            throw new IOException("Utilisateur non trouvé pour " + userEmail);
+        }
+        return groupDAO.getGroupsForUser(sender.getId());
     }
 }

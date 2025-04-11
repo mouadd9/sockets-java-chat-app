@@ -26,18 +26,18 @@ public class Message {
     // Méthode factory pour créer un message direct
     public static Message newDirectMessage(final long senderUserId, final long receiverUserId, final String content) {
         final Message msg = new Message();
-        msg.senderUserId = senderUserId;
-        msg.receiverUserId = receiverUserId;
-        msg.content = content;
+        msg.setSenderUserId(senderUserId);
+        msg.setReceiverUserId(receiverUserId);
+        msg.setContent(content);
         return msg;
     }
 
     // Méthode factory pour créer un message de groupe
     public static Message newGroupMessage(final long senderUserId, final long groupId, final String content) {
         final Message msg = new Message();
-        msg.senderUserId = senderUserId;
-        msg.groupId = groupId;
-        msg.content = content;
+        msg.setSenderUserId(senderUserId);
+        msg.setGroupId(groupId);
+        msg.setContent(content);
         return msg;
     }
 

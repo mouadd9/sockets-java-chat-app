@@ -14,7 +14,6 @@ public class GroupMembershipDAO {
         final String sql = "INSERT INTO group_memberships (user_id, group_id, joined_at) VALUES (?,?,?)";
         try (Connection conn = JDBCUtil.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-
             stmt.setLong(1, membership.getUserId());
             stmt.setLong(2, membership.getGroupId());
             stmt.setTimestamp(3, Timestamp.valueOf(membership.getJoinedAt()));
@@ -28,7 +27,6 @@ public class GroupMembershipDAO {
         final String sql = "SELECT * FROM group_memberships WHERE user_id = ? AND group_id = ?";
         try (Connection conn = JDBCUtil.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
-
             stmt.setLong(1, userId);
             stmt.setLong(2, groupId);
             try (ResultSet rs = stmt.executeQuery()) {

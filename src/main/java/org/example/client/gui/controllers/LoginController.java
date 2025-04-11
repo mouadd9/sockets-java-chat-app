@@ -2,8 +2,8 @@ package org.example.client.gui.controllers;
 
 import java.io.IOException;
 
+import org.example.client.gui.service.ChatService;
 import org.example.dto.Credentials;
-import org.example.service.ChatService;
 
 import javafx.application.Platform;
 import javafx.event.ActionEvent;

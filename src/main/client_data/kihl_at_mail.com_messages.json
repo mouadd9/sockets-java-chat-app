@@ -1,0 +1,25 @@
+[ {
+  "id" : 0,
+  "senderUserId" : 3,
+  "receiverUserId" : null,
+  "groupId" : 2,
+  "content" : "test",
+  "timestamp" : [ 2025, 4, 11, 1, 39, 22, 204382000 ],
+  "status" : "SENT"
+}, {
+  "id" : 0,
+  "senderUserId" : 3,
+  "receiverUserId" : null,
+  "groupId" : 1,
+  "content" : "salam",
+  "timestamp" : [ 2025, 4, 11, 1, 55, 12, 993689000 ],
+  "status" : "SENT"
+}, {
+  "id" : 0,
+  "senderUserId" : 4,
+  "receiverUserId" : null,
+  "groupId" : 1,
+  "content" : "wa tbarkalah",
+  "timestamp" : [ 2025, 4, 11, 1, 57, 53, 646316000 ],
+  "status" : "SENT"
+} ]
