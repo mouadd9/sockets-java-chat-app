@@ -1,4 +1,4 @@
-package org.example.service;
+package org.example.client.gui.service;
 
 import org.example.dao.GroupDAO;
 import org.example.dao.GroupMembershipDAO;

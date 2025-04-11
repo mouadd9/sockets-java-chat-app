@@ -118,7 +118,7 @@ public class MessageBroker {
 
         synchronized void loadPersistedMessages() {
             try {
-                final List<Message> pendingMessages = messageDAO.getPendingMessagesForReceiver(userId);
+                final List<Message> pendingMessages = messageDAO.getPendingMessagesForUser(userId);
                 pendingMessages.forEach(this::addMessageToQueue);
             } catch (final Exception e) {
                 System.err.println("Error reloading persisted messages for user " + userId + ": " + e.getMessage());

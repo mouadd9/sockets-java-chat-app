@@ -76,32 +76,38 @@ public class MessageDAO {
         return null;
     }
 
-    public List<Message> getPendingMessagesForReceiver(long receiverUserId) throws SQLException {
-        List<Message> messages = new ArrayList<>();
-        String sql = "SELECT * FROM messages WHERE receiver_user_id = ? AND status = ?";
+    public List<Message> getPendingMessagesForUser(final long receiverUserId) throws SQLException {
+        final List<Message> messages = new ArrayList<>();
+        // Récupérer les messages directs et les messages de groupe pour lesquels
+        // l'utilisateur est membre
+        final String sql = "SELECT * FROM messages " +
+                "WHERE ((receiver_user_id = ? AND status = ?) " +
+                "OR (group_id IS NOT NULL AND status = ? " +
+                "    AND group_id IN (SELECT group_id FROM group_memberships WHERE user_id = ?)))";
         try (Connection conn = JDBCUtil.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setLong(1, receiverUserId);
             stmt.setString(2, MessageStatus.QUEUED.name());
+            stmt.setString(3, MessageStatus.QUEUED.name());
+            stmt.setLong(4, receiverUserId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    Message message = new Message();
+                    final Message message = new Message();
                     message.setId(rs.getLong("id"));
                     message.setSenderUserId(rs.getLong("sender_user_id"));
-                    long receiver = rs.getLong("receiver_user_id");
-                    if (rs.wasNull()) {
-                        message.setReceiverUserId(null);
-                    } else {
-                        message.setReceiverUserId(receiver);
+                    long rec = rs.getLong("receiver_user_id");
+                    if (!rs.wasNull()) {
+                        message.setReceiverUserId(rec);
                     }
-                    long group = rs.getLong("group_id");
-                    if (rs.wasNull()) {
-                        message.setGroupId(null);
-                    } else {
-                        message.setGroupId(group);
+                    long grp = rs.getLong("group_id");
+                    if (!rs.wasNull()) {
+                        message.setGroupId(grp);
                     }
                     message.setContent(rs.getString("content"));
-                    message.setTimestamp(rs.getTimestamp("timestamp").toLocalDateTime());
+                    Timestamp ts = rs.getTimestamp("timestamp");
+                    if (ts != null) {
+                        message.setTimestamp(ts.toLocalDateTime());
+                    }
                     message.setStatus(MessageStatus.valueOf(rs.getString("status")));
                     messages.add(message);
                 }
@@ -111,7 +117,7 @@ public class MessageDAO {
     }
 
     public List<Message> getConversation(final long user1Id, final long user2Id) {
-        List<Message> messages = new ArrayList<>();
+        final List<Message> messages = new ArrayList<>();
         final String sql = "SELECT * FROM messages WHERE " +
                 " (sender_user_id = ? AND receiver_user_id = ?) OR (sender_user_id = ? AND receiver_user_id = ?)";
         try (Connection conn = JDBCUtil.getConnection();
@@ -124,19 +130,19 @@ public class MessageDAO {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    Message message = new Message();
+                    final Message message = new Message();
                     message.setId(rs.getLong("id"));
                     message.setSenderUserId(rs.getLong("sender_user_id"));
-                    long receiver = rs.getLong("receiver_user_id");
+                    final long receiver = rs.getLong("receiver_user_id");
                     if (!rs.wasNull()) {
                         message.setReceiverUserId(receiver);
                     }
-                    long group = rs.getLong("group_id");
+                    final long group = rs.getLong("group_id");
                     if (!rs.wasNull()) {
                         message.setGroupId(group);
                     }
                     message.setContent(rs.getString("content"));
-                    Timestamp ts = rs.getTimestamp("timestamp");
+                    final Timestamp ts = rs.getTimestamp("timestamp");
                     if (ts != null) {
                         message.setTimestamp(ts.toLocalDateTime());
                     }
@@ -144,17 +150,18 @@ public class MessageDAO {
                     messages.add(message);
                 }
             }
-        } catch (SQLException e) {
+        } catch (final SQLException e) {
             e.printStackTrace();
         }
         return messages;
     }
+
     public boolean deleteMessage(final long messageId) throws SQLException {
         final String sql = "DELETE FROM messages WHERE id = ?";
         try (Connection conn = JDBCUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setLong(1, messageId);
-            int affectedRows = stmt.executeUpdate();
+            final int affectedRows = stmt.executeUpdate();
             return affectedRows > 0;
         }
     }

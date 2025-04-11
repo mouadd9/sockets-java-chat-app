@@ -2,13 +2,14 @@ package org.example.client.gui.controllers;
 
 import java.io.IOException;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 
+import org.example.client.gui.repository.JsonLocalMessageRepository;
 import org.example.client.gui.service.ChatService;
-import org.example.client.repository.JsonLocalMessageRepository;
+import org.example.client.gui.service.GroupService;
 import org.example.model.Group;
 import org.example.model.Message;
-import org.example.service.GroupService;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -62,10 +63,12 @@ public class ChatController {
     private String selectedContact;
 
     private final ObservableList<String> contacts = FXCollections.observableArrayList();
-    private final ObservableList<Group> groups = FXCollections.observableArrayList(); // Déclaration de l'ObservableList pour les groupes
+    private final ObservableList<Group> groups = FXCollections.observableArrayList(); // Déclaration de l'ObservableList
     private static final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
     private final JsonLocalMessageRepository localRepo = new JsonLocalMessageRepository();
     private final GroupService groupService = new GroupService();
+    private final List<Message> displayedMessages = new ArrayList<>();
+    private final Object loadLock = new Object(); // verrou pour synchroniser le chargement
 
     @FXML
     public void initialize() {
@@ -81,18 +84,20 @@ public class ChatController {
             }
         });
 
-        // Configurer le clic sur un contact
+        // Lors de la sélection d'un contact, vider la sélection du groupe
         contactListView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
+                groupListView.getSelectionModel().clearSelection();
                 selectedContact = newVal;
-                loadConversation(selectedContact);
+                loadContactConversation(selectedContact);
                 setStatus("Conversation chargée avec " + selectedContact);
             }
         });
 
-        // Ajouter le listener pour les groupes
+        // Lors de la sélection d'un groupe, vider la sélection des contacts
         groupListView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
+                contactListView.getSelectionModel().clearSelection();
                 loadGroupConversation(newVal);
                 setStatus("Conversation de groupe chargée : " + newVal.getName());
             }
@@ -144,15 +149,19 @@ public class ChatController {
 
         try {
             Message message;
-            if (!groupListView.getSelectionModel().isEmpty()) {
+            // Si un contact est sélectionné, envoyer un message direct
+            if (contactListView.getSelectionModel().getSelectedItem() != null) {
+                selectedContact = contactListView.getSelectionModel().getSelectedItem();
+                message = chatService.createDirectMessage(userEmail, selectedContact, content);
+                chatService.sendMessage(message);
+            }
+            // Sinon, si un groupe est sélectionné, envoyer un message de groupe
+            else if (groupListView.getSelectionModel().getSelectedItem() != null) {
                 final Group selectedGroup = groupListView.getSelectionModel().getSelectedItem();
                 message = chatService.createGroupMessage(userEmail, selectedGroup.getId(), content);
                 chatService.sendGroupMessage(message);
-            } else if (selectedContact != null) {
-                // Envoi de message direct
-                message = chatService.createDirectMessage(userEmail, selectedContact, content);
-                chatService.sendMessage(message);
             } else {
+                setStatus("Veuillez sélectionner un groupe ou un contact.");
                 return;
             }
             messageField.clear();
@@ -301,29 +310,39 @@ public class ChatController {
         }
     }
 
-    private void loadConversation(final String contactEmail) {
-        chatHistoryContainer.getChildren().clear();
-
-        try {
-            final List<Message> localMessages = localRepo.loadLocalMessages(userEmail);
-            final long myId = chatService.getCurrentUserId();
-            final long contactId = chatService.getUserId(contactEmail);
-
-            // Filtrer uniquement les messages de la conversation entre l'utilisateur et le
-            // contact
-            localMessages.stream()
-                    .filter(m -> (m.getSenderUserId() == myId && m.getReceiverUserId() != null
-                            && m.getReceiverUserId().equals(contactId))
-                            || (m.getSenderUserId() == contactId && m.getReceiverUserId() != null
-                                    && m.getReceiverUserId().equals(myId)))
-                    .forEach(this::addMessageToChat);
-        } catch (final IOException e) {
-            setStatus("Erreur lors du chargement de l'historique local : " + e.getMessage());
-        }
-    }
-
     private void handleIncomingMessage(final Message message) {
         Platform.runLater(() -> {
+            // Si le message est un message de groupe, le traiter séparément
+            if (message.getGroupId() != null) {
+                // Vérifier si le groupe est déjà présent dans la liste
+                final boolean groupExists = groups.stream().anyMatch(g -> g.getId() == message.getGroupId());
+                if (!groupExists) {
+                    try {
+                        // Récupérer le groupe depuis GroupDAO
+                        final Group newGroup = new org.example.dao.GroupDAO().findGroupById(message.getGroupId());
+                        if (newGroup != null) {
+                            groups.add(newGroup);
+                        }
+                    } catch (final Exception e) {
+                        setStatus("Erreur lors du chargement du groupe: " + e.getMessage());
+                    }
+                }
+                // Afficher le message uniquement si le groupe actuellement sélectionné
+                // correspond
+                final Group currentGroup = groupListView.getSelectionModel().getSelectedItem();
+                if (currentGroup != null && currentGroup.getId() == message.getGroupId()) {
+                    addMessageToChat(message);
+                }
+                try {
+                    localRepo.addLocalMessage(userEmail, message);
+                } catch (final IOException e) {
+                    System.err.println("Erreur de sauvegarde locale : " + e.getMessage());
+                }
+                setStatus("Nouveau message de groupe reçu");
+                return;
+            }
+
+            // Pour les messages directs
             String senderEmail = "";
             String receiverEmail = "";
             try {
@@ -332,32 +351,27 @@ public class ChatController {
                     receiverEmail = chatService.getUserEmail(message.getReceiverUserId());
                 }
             } catch (final IOException e) {
-                setStatus("Erreur lors de la récupération de l'email de l'utilisateur: " + e.getMessage());
+                setStatus("Erreur lors de la récupération de l'email: " + e.getMessage());
                 return;
             }
 
-            // Si aucun contact n'est sélectionné, déterminer celui-ci selon l'expéditeur et
-            // le destinataire.
             if (selectedContact == null) {
                 selectedContact = senderEmail.equals(userEmail) ? receiverEmail : senderEmail;
                 contactListView.getSelectionModel().select(selectedContact);
                 setStatus("Conversation chargée avec " + selectedContact);
             }
 
-            // Afficher le message uniquement s'il appartient à la conversation active.
             if (selectedContact != null &&
                     (senderEmail.equals(selectedContact) || receiverEmail.equals(selectedContact))) {
                 addMessageToChat(message);
             }
 
-            // Enregistrer le message en local.
             try {
                 localRepo.addLocalMessage(userEmail, message);
             } catch (final IOException e) {
                 System.err.println("Erreur de sauvegarde locale : " + e.getMessage());
             }
 
-            // Mise à jour des contacts si nécessaire.
             final String otherUser = senderEmail.equals(userEmail) ? receiverEmail : senderEmail;
             if (!contacts.contains(otherUser)) {
                 contacts.add(otherUser);
@@ -403,13 +417,34 @@ public class ChatController {
         Platform.runLater(() -> statusLabel.setText(status));
     }
 
+    private void loadContactConversation(final String contactEmail) {
+        Platform.runLater(() -> {
+            synchronized (loadLock) {
+                chatHistoryContainer.getChildren().clear();
+                try {
+                    final long myId = chatService.getCurrentUserId();
+                    final long contactId = chatService.getUserId(contactEmail);
+                    final List<Message> contactMessages = localRepo.loadContactMessages(userEmail, myId, contactId);
+                    contactMessages.forEach(this::addMessageToChat);
+                } catch (final IOException e) {
+                    setStatus("Erreur lors du chargement de la conversation avec " + contactEmail + " : "
+                            + e.getMessage());
+                }
+            }
+        });
+    }
+
     private void loadGroupConversation(final Group group) {
-        chatHistoryContainer.getChildren().clear();
-        try {
-            final List<Message> groupMessages = localRepo.loadGroupMessages(userEmail, group.getId());
-            groupMessages.forEach(this::addMessageToChat);
-        } catch (final IOException e) {
-            setStatus("Erreur lors du chargement de l'historique de groupe : " + e.getMessage());
-        }
+        Platform.runLater(() -> {
+            synchronized (loadLock) {
+                chatHistoryContainer.getChildren().clear();
+                try {
+                    final List<Message> groupMessages = localRepo.loadGroupMessages(userEmail, group.getId());
+                    groupMessages.forEach(this::addMessageToChat);
+                } catch (final IOException e) {
+                    setStatus("Erreur lors du chargement de l'historique de groupe : " + e.getMessage());
+                }
+            }
+        });
     }
 }

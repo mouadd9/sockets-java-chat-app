@@ -1,4 +1,4 @@
-package org.example.client.repository;
+package org.example.client.gui.repository;
 
 import java.io.File;
 import java.io.IOException;
@@ -81,6 +81,22 @@ public class JsonLocalMessageRepository {
         final List<Message> messages = loadLocalMessages(userEmail);
         messages.add(message);
         saveLocalMessages(userEmail, messages);
+    }
+
+        /**
+     * Retourne la conversation entre deux utilisateurs en filtrant les messages directs (sans groupId).
+     */
+    public List<Message> loadContactMessages(final String userEmail, final long myId, final long contactId) throws IOException {
+        final List<Message> allMessages = loadLocalMessages(userEmail);
+        final List<Message> contactMessages = new ArrayList<>();
+        for (final Message msg : allMessages) {
+            if (msg.getGroupId() == null 
+                && ((msg.getSenderUserId() == myId && msg.getReceiverUserId() != null && msg.getReceiverUserId() == contactId)
+                || (msg.getSenderUserId() == contactId && msg.getReceiverUserId() != null && msg.getReceiverUserId() == myId))) {
+                    contactMessages.add(msg);
+            }
+        }
+        return contactMessages;
     }
 
     /**
