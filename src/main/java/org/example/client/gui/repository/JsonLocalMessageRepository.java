@@ -6,8 +6,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
-import org.example.model.Message;
+import org.example.shared.model.Message;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -16,12 +17,14 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 /**
  * Classe de persistance locale pour l'historique des messages d'un utilisateur.
- * L'historique est stocké sous forme de fichier JSON dans le dossier "src/main/client_data".
+ * L'historique est stocké sous forme de fichier JSON dans le dossier
+ * "src/main/resources/client_data".
  */
 public class JsonLocalMessageRepository {
     // Utilisation du répertoire de projet pour stocker les données clients
     private static final String LOCAL_FOLDER = System.getProperty("user.dir")
-            + File.separator + "src" + File.separator + "main" + File.separator + "client_data";
+            + File.separator + "src" + File.separator + "main" + File.separator + "resources" + File.separator
+            + "client_data";
     private final ObjectMapper objectMapper;
 
     public JsonLocalMessageRepository() {
@@ -83,24 +86,27 @@ public class JsonLocalMessageRepository {
         saveLocalMessages(userEmail, messages);
     }
 
-        /**
-     * Retourne la conversation entre deux utilisateurs en filtrant les messages directs (sans groupId).
+    /**
+     * Retourne la conversation entre deux utilisateurs en filtrant les messages
+     * directs (sans groupId).
      */
-    public List<Message> loadContactMessages(final String userEmail, final long myId, final long contactId) throws IOException {
+    public List<Message> loadContactMessages(final String userEmail, final long myId, final long contactId)
+            throws IOException {
         final List<Message> allMessages = loadLocalMessages(userEmail);
-        final List<Message> contactMessages = new ArrayList<>();
-        for (final Message msg : allMessages) {
-            if (msg.getGroupId() == null 
-                && ((msg.getSenderUserId() == myId && msg.getReceiverUserId() != null && msg.getReceiverUserId() == contactId)
-                || (msg.getSenderUserId() == contactId && msg.getReceiverUserId() != null && msg.getReceiverUserId() == myId))) {
-                    contactMessages.add(msg);
-            }
-        }
+        final List<Message> contactMessages = allMessages.stream()
+                .filter(msg -> msg.getGroupId() == null
+                        && ((msg.getSenderUserId() == myId && msg.getReceiverUserId() != null
+                                && msg.getReceiverUserId() == contactId)
+                                || (msg.getSenderUserId() == contactId && msg.getReceiverUserId() != null
+                                        && msg.getReceiverUserId() == myId)))
+                .distinct()
+                .collect(Collectors.toList());
         return contactMessages;
     }
 
     /**
-     * Retourne la conversation de groupe en filtrant les messages dont le groupId correspond
+     * Retourne la conversation de groupe en filtrant les messages dont le groupId
+     * correspond
      * au groupe passé.
      */
     public List<Message> loadGroupMessages(final String userEmail, final long groupId) throws IOException {
@@ -119,10 +125,10 @@ public class JsonLocalMessageRepository {
      */
     public void removeConversation(final String userEmail, final long myId, final long contactId) throws IOException {
         final List<Message> messages = loadLocalMessages(userEmail);
-        messages.removeIf(m ->
-            (m.getSenderUserId() == myId && m.getReceiverUserId() != null && m.getReceiverUserId() == contactId)
-            || (m.getSenderUserId() == contactId && m.getReceiverUserId() != null && m.getReceiverUserId() == myId)
-        );
+        messages.removeIf(m -> (m.getSenderUserId() == myId && m.getReceiverUserId() != null
+                && m.getReceiverUserId() == contactId)
+                || (m.getSenderUserId() == contactId && m.getReceiverUserId() != null
+                        && m.getReceiverUserId() == myId));
         saveLocalMessages(userEmail, messages);
     }
 }

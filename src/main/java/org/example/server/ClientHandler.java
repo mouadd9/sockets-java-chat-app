@@ -6,11 +6,11 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 
-import org.example.broker.MessageBroker;
-import org.example.dao.UserDAO;
-import org.example.dto.Credentials;
-import org.example.model.Message;
-import org.example.model.User;
+import org.example.server.broker.MessageBroker;
+import org.example.shared.dao.UserDAO;
+import org.example.shared.dto.Credentials;
+import org.example.shared.model.Message;
+import org.example.shared.model.User;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -43,11 +43,13 @@ public class ClientHandler implements Runnable {
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
             this.input = in;
             this.output = out;
+
             if (!authenticateUser()) {
                 sendResponse("AUTH_FAILED");
                 return;
             }
             sendResponse("AUTH_SUCCESS");
+            
             initializeSubscription();
             processMessages();
         } catch (final IOException e) {

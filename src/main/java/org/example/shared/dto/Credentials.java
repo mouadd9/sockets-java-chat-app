@@ -1,4 +1,4 @@
-package org.example.dto;
+package org.example.shared.dto;
 
 /**
  * Classe DTO pour les informations d'authentification.

@@ -1,4 +1,4 @@
-package org.example.dao;
+package org.example.shared.dao;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -10,8 +10,8 @@ import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.example.model.Message;
-import org.example.model.enums.MessageStatus;
+import org.example.shared.model.Message;
+import org.example.shared.model.enums.MessageStatus;
 
 public class MessageDAO {
 
@@ -95,16 +95,16 @@ public class MessageDAO {
                     final Message message = new Message();
                     message.setId(rs.getLong("id"));
                     message.setSenderUserId(rs.getLong("sender_user_id"));
-                    long rec = rs.getLong("receiver_user_id");
+                    final long rec = rs.getLong("receiver_user_id");
                     if (!rs.wasNull()) {
                         message.setReceiverUserId(rec);
                     }
-                    long grp = rs.getLong("group_id");
+                    final long grp = rs.getLong("group_id");
                     if (!rs.wasNull()) {
                         message.setGroupId(grp);
                     }
                     message.setContent(rs.getString("content"));
-                    Timestamp ts = rs.getTimestamp("timestamp");
+                    final Timestamp ts = rs.getTimestamp("timestamp");
                     if (ts != null) {
                         message.setTimestamp(ts.toLocalDateTime());
                     }

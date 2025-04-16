@@ -1,4 +1,4 @@
-package org.example.dao;
+package org.example.shared.dao;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -6,7 +6,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 
-import org.example.model.GroupMembership;
+import org.example.shared.model.GroupMembership;
 
 public class GroupMembershipDAO {
 

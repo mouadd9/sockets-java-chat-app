@@ -1,9 +1,9 @@
 package org.example.client.gui.service;
 
-import org.example.dao.GroupDAO;
-import org.example.dao.GroupMembershipDAO;
-import org.example.model.Group;
-import org.example.model.GroupMembership;
+import org.example.shared.dao.GroupDAO;
+import org.example.shared.dao.GroupMembershipDAO;
+import org.example.shared.model.Group;
+import org.example.shared.model.GroupMembership;
 
 public class GroupService {
 

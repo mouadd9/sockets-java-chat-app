@@ -1,4 +1,4 @@
-package org.example.broker;
+package org.example.server.broker;
 
 import java.io.IOException;
 import java.util.List;
@@ -7,11 +7,11 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import org.example.dao.GroupDAO;
-import org.example.dao.MessageDAO;
-import org.example.model.Message;
-import org.example.model.enums.MessageStatus;
 import org.example.server.ClientHandler;
+import org.example.shared.dao.GroupDAO;
+import org.example.shared.dao.MessageDAO;
+import org.example.shared.model.Message;
+import org.example.shared.model.enums.MessageStatus;
 
 public class MessageBroker {
     private static MessageBroker instance;

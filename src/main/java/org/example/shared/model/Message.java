@@ -1,9 +1,9 @@
-package org.example.model;
+package org.example.shared.model;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
 
-import org.example.model.enums.MessageStatus;
+import org.example.shared.model.enums.MessageStatus;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 

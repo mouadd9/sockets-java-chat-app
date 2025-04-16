@@ -1,4 +1,4 @@
-package org.example.dao;
+package org.example.shared.dao;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -9,7 +9,7 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.example.model.Contact;
+import org.example.shared.model.Contact;
 
 public class ContactDAO {
 
@@ -55,16 +55,16 @@ public class ContactDAO {
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setLong(1, userId);
             stmt.setLong(2, contactId);
-            int affectedRows = stmt.executeUpdate();
+            final int affectedRows = stmt.executeUpdate();
             return affectedRows > 0;
-        } catch (SQLException e) {
+        } catch (final SQLException e) {
             e.printStackTrace();
         }
         return false;
     }
 
     public List<String> getContactsByUserId(final long userId) throws IOException {
-        List<String> contactEmails = new ArrayList<>();
+        final List<String> contactEmails = new ArrayList<>();
         final String sql = "SELECT u.email FROM contacts c JOIN users u ON c.contact_user_id = u.id WHERE c.user_id = ?";
         try (Connection conn = JDBCUtil.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -74,7 +74,7 @@ public class ContactDAO {
                     contactEmails.add(rs.getString("email"));
                 }
             }
-        } catch (SQLException e) {
+        } catch (final SQLException e) {
             throw new IOException("Erreur lors de la récupération des contacts", e);
         }
         return contactEmails;

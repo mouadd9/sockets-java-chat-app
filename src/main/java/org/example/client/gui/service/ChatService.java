@@ -9,15 +9,15 @@ import java.net.Socket;
 import java.util.List;
 import java.util.function.Consumer;
 
-import org.example.dao.ContactDAO;
-import org.example.dao.GroupDAO;
-import org.example.dao.MessageDAO;
-import org.example.dao.UserDAO;
-import org.example.dto.Credentials;
-import org.example.model.Contact;
-import org.example.model.Group;
-import org.example.model.Message;
-import org.example.model.User;
+import org.example.shared.dao.ContactDAO;
+import org.example.shared.dao.GroupDAO;
+import org.example.shared.dao.MessageDAO;
+import org.example.shared.dao.UserDAO;
+import org.example.shared.dto.Credentials;
+import org.example.shared.model.Contact;
+import org.example.shared.model.Group;
+import org.example.shared.model.Message;
+import org.example.shared.model.User;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;

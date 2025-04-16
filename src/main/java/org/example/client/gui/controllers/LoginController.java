@@ -3,7 +3,7 @@ package org.example.client.gui.controllers;
 import java.io.IOException;
 
 import org.example.client.gui.service.ChatService;
-import org.example.dto.Credentials;
+import org.example.shared.dto.Credentials;
 
 import javafx.application.Platform;
 import javafx.event.ActionEvent;

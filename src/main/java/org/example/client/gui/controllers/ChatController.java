@@ -2,14 +2,13 @@ package org.example.client.gui.controllers;
 
 import java.io.IOException;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.example.client.gui.repository.JsonLocalMessageRepository;
 import org.example.client.gui.service.ChatService;
 import org.example.client.gui.service.GroupService;
-import org.example.model.Group;
-import org.example.model.Message;
+import org.example.shared.model.Group;
+import org.example.shared.model.Message;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -24,6 +23,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -58,6 +58,9 @@ public class ChatController {
     @FXML
     private TextField memberEmailField; // zone de saisie pour l'email du membre à ajouter
 
+    @FXML
+    private ScrollPane chatScrollPane;
+
     private ChatService chatService;
     private String userEmail;
     private String selectedContact;
@@ -67,7 +70,6 @@ public class ChatController {
     private static final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
     private final JsonLocalMessageRepository localRepo = new JsonLocalMessageRepository();
     private final GroupService groupService = new GroupService();
-    private final List<Message> displayedMessages = new ArrayList<>();
     private final Object loadLock = new Object(); // verrou pour synchroniser le chargement
 
     @FXML
@@ -131,9 +133,7 @@ public class ChatController {
             Platform.runLater(() -> {
                 groups.clear();
                 groups.addAll(groupList);
-                if (!groups.isEmpty()) {
-                    groupListView.getSelectionModel().select(0);
-                }
+                
             });
         } catch (final IOException e) {
             setStatus("Erreur lors du chargement des groupes : " + e.getMessage());
@@ -226,6 +226,7 @@ public class ChatController {
     private void handleLogout() {
         try {
             chatService.disconnect();
+            chatHistoryContainer.getChildren().clear();
 
             // Revenir à l'écran de connexion
             final FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/login.fxml"));
@@ -300,10 +301,6 @@ public class ChatController {
                 contacts.clear();
                 contacts.addAll(contactList);
 
-                // Sélectionner automatiquement le premier contact
-                if (!contacts.isEmpty()) {
-                    contactListView.getSelectionModel().select(0);
-                }
             });
         } catch (final IOException e) {
             setStatus("Erreur lors du chargement des contacts: " + e.getMessage());
@@ -319,7 +316,8 @@ public class ChatController {
                 if (!groupExists) {
                     try {
                         // Récupérer le groupe depuis GroupDAO
-                        final Group newGroup = new org.example.dao.GroupDAO().findGroupById(message.getGroupId());
+                        final Group newGroup = new org.example.shared.dao.GroupDAO()
+                                .findGroupById(message.getGroupId());
                         if (newGroup != null) {
                             groups.add(newGroup);
                         }
@@ -383,7 +381,6 @@ public class ChatController {
 
     private void addMessageToChat(final Message message) {
         final boolean isMine = message.getSenderUserId() == chatService.getCurrentUserId();
-        final String senderDisplay = isMine ? userEmail : selectedContact; // pour l'affichage si besoin
 
         final HBox messageBox = new HBox();
         messageBox.setMaxWidth(chatHistoryContainer.getWidth() * 0.8);
@@ -409,7 +406,13 @@ public class ChatController {
 
         Platform.runLater(() -> {
             chatHistoryContainer.getChildren().add(messageBox);
-            chatHistoryContainer.heightProperty().addListener(observable -> chatHistoryContainer.layout());
+            Platform.runLater(this::scrollToBottom);
+        });
+    }
+
+    private void scrollToBottom() {
+        Platform.runLater(() -> {
+            chatScrollPane.setVvalue(1.0);
         });
     }
 
@@ -426,6 +429,7 @@ public class ChatController {
                     final long contactId = chatService.getUserId(contactEmail);
                     final List<Message> contactMessages = localRepo.loadContactMessages(userEmail, myId, contactId);
                     contactMessages.forEach(this::addMessageToChat);
+                    scrollToBottom(); // Défilement après chargement des messages
                 } catch (final IOException e) {
                     setStatus("Erreur lors du chargement de la conversation avec " + contactEmail + " : "
                             + e.getMessage());
@@ -441,6 +445,7 @@ public class ChatController {
                 try {
                     final List<Message> groupMessages = localRepo.loadGroupMessages(userEmail, group.getId());
                     groupMessages.forEach(this::addMessageToChat);
+                    scrollToBottom(); // Défilement après chargement des messages
                 } catch (final IOException e) {
                     setStatus("Erreur lors du chargement de l'historique de groupe : " + e.getMessage());
                 }

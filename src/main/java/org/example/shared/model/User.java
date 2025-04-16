@@ -1,4 +1,4 @@
-package org.example.model;
+package org.example.shared.model;
 
 import java.time.LocalDateTime;
 import java.util.Objects;

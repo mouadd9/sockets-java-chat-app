@@ -1,4 +1,4 @@
-package org.example.model.enums;
+package org.example.shared.model.enums;
 
 /**
  * Définit les statuts possibles d'un message.

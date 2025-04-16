@@ -1,4 +1,4 @@
-package org.example.dao;
+package org.example.shared.dao;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -9,7 +9,7 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.example.model.Group;
+import org.example.shared.model.Group;
 
 public class GroupDAO {
 
