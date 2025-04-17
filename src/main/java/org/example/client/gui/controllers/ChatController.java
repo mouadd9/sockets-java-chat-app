@@ -71,6 +71,7 @@ public class ChatController {
     private ChatService chatService;
     private String userEmail;
     private String selectedContact;
+    private Group selectedGroup; // Nouvelle variable pour suivre le groupe sélectionné
 
     private final ObservableList<String> contacts = FXCollections.observableArrayList();
     private final ObservableList<Group> groups = FXCollections.observableArrayList(); // Déclaration de l'ObservableList
@@ -165,9 +166,9 @@ public class ChatController {
 
                     try {
                         // Récupérer le dernier message du groupe
-                        Optional<Message> lastMsgOpt = localRepo.getLastGroupMessage(userEmail, group.getId());
+                        final Optional<Message> lastMsgOpt = localRepo.getLastGroupMessage(userEmail, group.getId());
                         if (lastMsgOpt.isPresent()) {
-                            Message lastMsg = lastMsgOpt.get();
+                            final Message lastMsg = lastMsgOpt.get();
                             String senderName = "Quelqu'un"; // Nom par défaut
                             long myId = -1; // ID par défaut
 
@@ -179,26 +180,26 @@ public class ChatController {
                                     senderName = chatService.getUserEmail(lastMsg.getSenderUserId()); // Peut lancer
                                                                                                       // IOException
                                     senderName = senderName.split("@")[0]; // Juste la partie avant @
-                                } catch (IOException e) {
+                                } catch (final IOException e) {
                                     System.err.println("Erreur cellFactory groupe (getUserEmail): " + e.getMessage());
                                     senderName = "Inconnu"; // Utiliser un nom de fallback en cas d'erreur
                                 }
                             }
 
-                            String prefix = (chatService != null && lastMsg.getSenderUserId() == myId) ? "Vous: "
+                            final String prefix = (chatService != null && lastMsg.getSenderUserId() == myId) ? "Vous: "
                                     : senderName + ": ";
                             lastMsgText = prefix + truncate(lastMsg.getContent(), 30);
                         }
-                    } catch (IOException e) {
+                    } catch (final IOException e) {
                         System.err.println("Erreur cellFactory groupe (getLastGroupMessage) (" + group.getName() + "): "
                                 + e.getMessage());
                         lastMsgText = "Erreur chargement";
-                    } catch (NullPointerException npe) {
+                    } catch (final NullPointerException npe) {
                         System.err.println(
                                 "Erreur cellFactory groupe (" + group.getName() + "): chatService non initialisé?");
                     }
 
-                    Image img = loadImage(imageUrl, 30);
+                    final Image img = loadImage(imageUrl, 30);
                     if (img != null) {
                         avatar.setImage(img);
                     } else {
@@ -215,6 +216,7 @@ public class ChatController {
             if (newVal != null) {
                 groupListView.getSelectionModel().clearSelection();
                 selectedContact = newVal;
+                selectedGroup = null; // Reset group selection
                 loadContactConversation(selectedContact);
                 setStatus("Conversation chargée avec " + selectedContact);
             }
@@ -224,6 +226,8 @@ public class ChatController {
         groupListView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
                 contactListView.getSelectionModel().clearSelection();
+                selectedGroup = newVal; // Stocker la sélection
+                selectedContact = null; // Reset contact selection
                 loadGroupConversation(newVal);
                 setStatus("Conversation de groupe chargée : " + newVal.getName());
             }
@@ -250,7 +254,7 @@ public class ChatController {
                 System.err.println("Image introuvable: " + imageUrl);
                 return null;
             }
-        } catch (IOException e) {
+        } catch (final IOException e) {
             System.err.println("Erreur lors du chargement de l'image " + imageUrl + ": " + e.getMessage());
             return null;
         }
@@ -330,6 +334,11 @@ public class ChatController {
             addMessageToChat(message);
             setStatus("Message envoyé");
             localRepo.addLocalMessage(userEmail, message);
+            if (message.getGroupId() != null) {
+                groupListView.refresh(); // Rafraîchir la liste des groupes
+            } else {
+                contactListView.refresh(); // Rafraîchir la liste des contacts
+            }
         } catch (final IOException e) {
             setStatus("Erreur lors de l'envoi du message : " + e.getMessage());
         }
@@ -499,49 +508,57 @@ public class ChatController {
                     System.err.println("Erreur de sauvegarde locale : " + e.getMessage());
                 }
                 setStatus("Nouveau message de groupe reçu");
+                groupListView.refresh();
                 return;
-            }
-
-            // Pour les messages directs
-            String senderEmail = "";
-            String receiverEmail = "";
-            try {
-                senderEmail = chatService.getUserEmail(message.getSenderUserId());
-                if (message.getReceiverUserId() != null) {
-                    receiverEmail = chatService.getUserEmail(message.getReceiverUserId());
+            } else {
+                String senderEmail = "";
+                String receiverEmail = "";
+                try {
+                    senderEmail = chatService.getUserEmail(message.getSenderUserId());
+                    if (message.getReceiverUserId() != null) {
+                        receiverEmail = chatService.getUserEmail(message.getReceiverUserId());
+                    }
+                } catch (final IOException e) {
+                    setStatus("Erreur lors de la récupération de l'email: " + e.getMessage());
+                    return;
                 }
-            } catch (final IOException e) {
-                setStatus("Erreur lors de la récupération de l'email: " + e.getMessage());
-                return;
-            }
 
-            if (selectedContact == null) {
-                selectedContact = senderEmail.equals(userEmail) ? receiverEmail : senderEmail;
-                contactListView.getSelectionModel().select(selectedContact);
-                setStatus("Conversation chargée avec " + selectedContact);
-            }
+                if (selectedGroup == null) { // Uniquement si aucun groupe n'est sélectionné
+                    if (selectedContact == null) {
+                        selectedContact = senderEmail.equals(userEmail) ? receiverEmail : senderEmail;
+                        contactListView.getSelectionModel().select(selectedContact);
+                        setStatus("Conversation chargée avec " + selectedContact);
+                    }
+                }
 
-            if (selectedContact != null &&
-                    (senderEmail.equals(selectedContact) || receiverEmail.equals(selectedContact))) {
-                addMessageToChat(message);
-            }
+                if (selectedGroup == null && selectedContact != null &&
+                        (senderEmail.equals(selectedContact) || receiverEmail.equals(selectedContact))) {
+                    addMessageToChat(message);
+                }
 
-            try {
-                localRepo.addLocalMessage(userEmail, message);
-            } catch (final IOException e) {
-                System.err.println("Erreur de sauvegarde locale : " + e.getMessage());
-            }
+                try {
+                    localRepo.addLocalMessage(userEmail, message);
+                } catch (final IOException e) {
+                    System.err.println("Erreur de sauvegarde locale : " + e.getMessage());
+                }
+                contactListView.refresh();
 
-            final String otherUser = senderEmail.equals(userEmail) ? receiverEmail : senderEmail;
-            if (!contacts.contains(otherUser)) {
-                contacts.add(otherUser);
-            }
+                final String otherUser = senderEmail.equals(userEmail) ? receiverEmail : senderEmail;
+                if (!contacts.contains(otherUser)) {
+                    contacts.add(otherUser);
+                }
 
-            setStatus("Nouveau message reçu");
+                setStatus("Nouveau message reçu");
+            }
         });
     }
 
     private void addMessageToChat(final Message message) {
+        if (message.getGroupId() != null && selectedGroup == null)
+            return;
+        if (message.getGroupId() == null && selectedContact == null)
+            return;
+
         final boolean isMine = message.getSenderUserId() == chatService.getCurrentUserId();
 
         final HBox messageBox = new HBox();
