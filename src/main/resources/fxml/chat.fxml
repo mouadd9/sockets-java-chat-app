@@ -1,70 +1,87 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import java.net.URL?>
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 
-<BorderPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
-            fx:controller="org.example.client.gui.controllers.ChatController">
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="org.example.client.gui.controllers.ChatController"
+            prefHeight="600.0" prefWidth="800.0">
     
-    <!-- En-tête avec le nom de l'utilisateur et le bouton de déconnexion -->
+    <stylesheets>
+        <URL value="@../css/chat.css"/>
+    </stylesheets>
+    
     <top>
-        <HBox alignment="CENTER_LEFT" spacing="10" style="-fx-background-color: #4CAF50; -fx-padding: 10px;">
-            <Label fx:id="userEmailLabel" text="Non connecté" style="-fx-text-fill: white; -fx-font-weight: bold;"/>
-            <Region HBox.hgrow="ALWAYS" />
-            <Button text="Déconnexion" onAction="#handleLogout" 
-                    style="-fx-background-color: #f44336; -fx-text-fill: white;"/>
+        <HBox alignment="CENTER_LEFT" spacing="10" styleClass="header">
+            <Label text="Chat Application" styleClass="header-text"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Label fx:id="userEmailLabel" styleClass="header-text"/>
+            <Button text="Déconnexion" onAction="#handleLogout"/>
         </HBox>
     </top>
     
-    <!-- Partie centrale avec la liste des contacts et la zone de chat -->
-    <center>
-        <SplitPane dividerPositions="0.3">
-            <!-- Liste des contacts et groupes -->
-            <VBox spacing="10" style="-fx-padding: 10px;">
-                <Label text="Contacts" style="-fx-font-weight: bold;"/>
-                <ListView fx:id="contactListView" VBox.vgrow="ALWAYS"/>
-                <HBox spacing="5">
-                    <TextField fx:id="newContactField" promptText="Email du contact" HBox.hgrow="ALWAYS"/>
-                    <Button text="+" onAction="#handleAddContact"/>
-                    <Button text="-" onAction="#handleRemoveContact"/>
-                </HBox>
-                <!-- Nouvelle section pour les groupes -->
-                <Label text="Groupes" style="-fx-font-weight: bold; -fx-padding: 10 0 0 0;"/>
-                <ListView fx:id="groupListView" VBox.vgrow="ALWAYS"/>
-                <!-- Section de création de groupe -->
-                <HBox spacing="5">
-                    <TextField fx:id="groupNameField" promptText="Nom du groupe" HBox.hgrow="ALWAYS"/>
-                    <Button text="Créer Groupe" onAction="#handleCreateGroup"/>
-                </HBox>
-                <!-- Ajout d'un membre au groupe -->
-                <HBox spacing="5">
-                    <TextField fx:id="memberEmailField" promptText="Email du membre" HBox.hgrow="ALWAYS"/>
-                    <Button text="Ajouter Membre" onAction="#handleAddMemberToGroup"/>
-                </HBox>
-            </VBox>
+    <left>
+        <VBox spacing="5" prefWidth="250">
+            <padding>
+                <Insets top="5" right="5" bottom="5" left="5"/>
+            </padding>
             
-            <!-- Zone de chat -->
-            <VBox>
-                <!-- Historique des messages -->
-                <ScrollPane fx:id="chatScrollPane" fitToWidth="true" VBox.vgrow="ALWAYS">
-                    <VBox fx:id="chatHistoryContainer" spacing="10" style="-fx-padding: 10px;"/>
-                </ScrollPane>
-                
-                <!-- Zone de saisie du message -->
-                <HBox spacing="5" alignment="CENTER" style="-fx-padding: 10px;">
-                    <TextField fx:id="messageField" promptText="Entrez votre message" HBox.hgrow="ALWAYS"/>
-                    <Button text="Envoyer" onAction="#handleSendMessage" 
-                            style="-fx-background-color: #4CAF50; -fx-text-fill: white;"/>
-                </HBox>
-            </VBox>
-        </SplitPane>
-    </center>
+            <Label text="Contacts" style="-fx-font-weight: bold;"/>
+            <HBox spacing="5">
+                <TextField fx:id="newContactField" promptText="Ajouter un contact" HBox.hgrow="ALWAYS"/>
+                <Button text="+" onAction="#handleAddContact"/>
+                <Button text="-" onAction="#handleRemoveContact"/>
+            </HBox>
+            <ListView fx:id="contactListView" VBox.vgrow="ALWAYS" styleClass="contact-list">
+                <placeholder>
+                    <Label text="Aucun contact"/>
+                </placeholder>
+            </ListView>
+            
+            <Separator>
+                <padding>
+                    <Insets top="10" bottom="10"/>
+                </padding>
+            </Separator>
+            
+            <Label text="Groupes" style="-fx-font-weight: bold;"/>
+            <HBox spacing="5">
+                <TextField fx:id="groupNameField" promptText="Nom du groupe" HBox.hgrow="ALWAYS"/>
+                <Button text="+" onAction="#handleCreateGroup"/>
+            </HBox>
+            <ListView fx:id="groupListView" VBox.vgrow="ALWAYS" styleClass="group-list">
+                <placeholder>
+                    <Label text="Aucun groupe"/>
+                </placeholder>
+            </ListView>
+            <HBox spacing="5">
+                <TextField fx:id="memberEmailField" promptText="Ajouter un membre" HBox.hgrow="ALWAYS"/>
+                <Button text="+" onAction="#handleAddMemberToGroup"/>
+            </HBox>
+        </VBox>
+    </left>
     
-    <!-- Barre d'état en bas -->
-    <bottom>
-        <HBox alignment="CENTER_LEFT" style="-fx-padding: 5px; -fx-background-color: #f0f0f0;">
-            <Label fx:id="statusLabel" text="Prêt"/>
-        </HBox>
-    </bottom>
+    <center>
+        <BorderPane>
+            <center>
+                <ScrollPane fx:id="chatScrollPane" fitToWidth="true">
+                    <VBox fx:id="chatHistoryContainer" spacing="5" styleClass="chat-history"/>
+                </ScrollPane>
+            </center>
+            <bottom>
+                <HBox spacing="5" alignment="CENTER_LEFT" style="-fx-padding: 10px;">
+                    <TextField fx:id="messageField" promptText="Écrire un message..." HBox.hgrow="ALWAYS"/>
+                    <Button text="Envoyer" styleClass="send-button" onAction="#handleSendMessage"/>
+                </HBox>
+            </bottom>
+            <top>
+                <HBox alignment="CENTER_LEFT" style="-fx-background-color: #f5f5f5; -fx-padding: 10px;">
+                    <Label fx:id="statusLabel" styleClass="status-label"/>
+                </HBox>
+            </top>
+        </BorderPane>
+    </center>
 </BorderPane>

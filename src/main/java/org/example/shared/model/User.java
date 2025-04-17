@@ -1,9 +1,11 @@
 package org.example.shared.model;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
-public class User {
+public class User implements Serializable {
+    private static final long serialVersionUID = 1L;
 
     private long id;
     private String email; // Unique
@@ -13,6 +15,7 @@ public class User {
     private LocalDateTime createdAt;
     private LocalDateTime lastLoginAt; // Peut être null
     private String profilePictureUrl; // URL de l'image de profil
+    private String status;
 
     // Constructeur par défaut
     public User() {
@@ -48,6 +51,23 @@ public class User {
     }
     public void setProfilePictureUrl(final String profilePictureUrl) { 
         this.profilePictureUrl = profilePictureUrl; 
+    }
+    public String getStatus() { return status; }
+    public void setStatus(final String status) { this.status = status; }
+
+    /**
+     * Retourne le nom d'affichage si disponible, sinon l'email
+     */
+    public String getDisplayNameOrEmail() {
+        return displayName != null && !displayName.isEmpty() ? displayName : email;
+    }
+
+    /**
+     * Retourne l'URL de l'avatar ou une image par défaut
+     */
+    public String getAvatarUrl() {
+        return profilePictureUrl != null && !profilePictureUrl.isEmpty() ? 
+               profilePictureUrl : "/images/default_avatar.png";
     }
 
     @Override

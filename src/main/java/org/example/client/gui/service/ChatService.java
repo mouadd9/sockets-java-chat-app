@@ -33,16 +33,16 @@ public class ChatService {
     private Thread listenerThread;
     private boolean isRunning = false;
 
-    // Instances DAO et persistance locale
+    // Instances DAO pour la persistance locale
     private final MessageDAO messageDAO;
-    private final UserDAO userDAO;
     private final GroupDAO groupDAO;
+    private final UserDAO userDAO; // Accès direct au DAO sans UserService
 
     public ChatService() {
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         this.messageDAO = new MessageDAO();
-        this.userDAO = new UserDAO();
         this.groupDAO = new GroupDAO();
+        this.userDAO = new UserDAO();
     }
 
     public boolean connect(final Credentials credentials) throws IOException {
@@ -111,6 +111,7 @@ public class ChatService {
 
     public long getCurrentUserId() {
         try {
+            // Utiliser directement UserDAO
             final User currentUser = userDAO.findUserByEmail(userEmail);
             return currentUser != null ? currentUser.getId() : -1;
         } catch (final Exception e) {
@@ -118,45 +119,19 @@ public class ChatService {
         }
     }
 
-    public long getUserId(final String email) throws IOException {
-        final User user = userDAO.findUserByEmail(email);
-        if(user == null) {
-            throw new IOException("Utilisateur non trouvé");
-        }
-        return user.getId();
-    }
-
-    public String getUserEmail(final long userId) throws IOException {
-        final User user = userDAO.findUserById(userId);
-        if (user == null) {
-            throw new IOException("Utilisateur non trouvé pour id " + userId);
-        }
-        return user.getEmail();
-    }
-
-    public String getUserProfilePicture(final String email) throws IOException {
-        final var user = userDAO.findUserByEmail(email); // récupération de l'utilisateur depuis le DAO
-        if (user != null && user.getProfilePictureUrl() != null && !user.getProfilePictureUrl().isEmpty()){
-            return user.getProfilePictureUrl();
-        }
-        return "/images/default_avatar.png";
+    public String getCurrentUserEmail() {
+        return userEmail;
     }
 
     public Message createDirectMessage(final String senderEmail, final String receiverEmail, final String content)
             throws IOException {
         final User sender = userDAO.findUserByEmail(senderEmail);
         final User receiver = userDAO.findUserByEmail(receiverEmail);
-        if (sender == null || receiver == null) {
-            throw new IOException("Utilisateur non trouvé");
-        }
         return Message.newDirectMessage(sender.getId(), receiver.getId(), content);
     }
 
     public Message createGroupMessage(final String senderEmail, final long groupId, final String content) throws IOException {
         final User sender = userDAO.findUserByEmail(senderEmail);
-        if(sender == null) {
-            throw new IOException("Utilisateur non trouvé pour email " + senderEmail);
-        }
         return Message.newGroupMessage(sender.getId(), groupId, content);
     }
     
@@ -180,16 +155,9 @@ public class ChatService {
         return true;
     }
 
-    // Récupère la conversation entre deux utilisateurs en convertissant leurs
-    // emails en IDs
-    public List<Message> getConversation(final String user1Email, final String user2Email) throws IOException {
-        final User user1 = userDAO.findUserByEmail(user1Email);
-        final User user2 = userDAO.findUserByEmail(user2Email);
-
-        if (user1 == null || user2 == null) {
-            throw new IOException("Utilisateur non trouvé");
-        }
-        return messageDAO.getConversation(user1.getId(), user2.getId());
+    // Récupère la conversation entre deux utilisateurs
+    public List<Message> getConversation(final long user1Id, final long user2Id) throws IOException {
+        return messageDAO.getConversation(user1Id, user2Id);
     }
 
     public void setMessageConsumer(final Consumer<Message> consumer) {
@@ -221,22 +189,5 @@ public class ChatService {
         });
         listenerThread.setDaemon(true);
         listenerThread.start();
-    }
-
-    // Nouvelle méthode pour récupérer les groupes d'un utilisateur
-    public List<Group> getGroupsForUser(final String userEmail) throws IOException {
-        final User sender = userDAO.findUserByEmail(userEmail);
-        if (sender == null) {
-            throw new IOException("Utilisateur non trouvé pour " + userEmail);
-        }
-        return groupDAO.getGroupsForUser(sender.getId());
-    }
-
-    public Group getGroupById(final long groupId) throws IOException {
-        final Group group = groupDAO.findGroupById(groupId);
-        if (group == null) {
-            System.err.println("Avertissement: Groupe non trouvé pour l'ID: " + groupId);
-        }
-        return group;
     }
 }

@@ -1,0 +1,104 @@
+/* Styles pour la liste de contacts */
+.contact-list-cell {
+    -fx-padding: 8px;
+    -fx-background-color: transparent;
+}
+
+.contact-list-cell:selected {
+    -fx-background-color: #e0f7fa;
+}
+
+/* Styles pour la liste de groupes */
+.group-list-cell {
+    -fx-padding: 8px;
+    -fx-background-color: transparent;
+}
+
+.group-list-cell:selected {
+    -fx-background-color: #e0f7fa;
+}
+
+/* Styles pour les conteneurs de messages */
+.message-container {
+    -fx-padding: 0px 5px;
+}
+
+/* Styles pour le contenu des messages */
+.message-content {
+    -fx-background-radius: 15px;
+    -fx-padding: 5px 15px;
+}
+
+/* Styles pour mes messages et ceux des autres */
+.my-message {
+    -fx-background-color: #DCF8C6;
+}
+
+.other-message {
+    -fx-background-color: #E1E1E1;
+}
+
+/* Style pour les zones d'entrée de texte */
+.text-field {
+    -fx-background-radius: 5px;
+    -fx-padding: 5px 15px;
+}
+
+/* Style pour le conteneur de messages */
+.chat-history {
+    -fx-background-color: #f5f5f5;
+    -fx-padding: 10px;
+}
+
+/* Style pour le bouton d'envoi */
+.send-button {
+    -fx-background-radius: 10px;
+    -fx-background-color: #4caf50;
+    -fx-text-fill: white;
+}
+
+.send-button:hover {
+    -fx-background-color: #66bb6a;
+}
+
+/* Style pour les noms d'expéditeur */
+.sender-name {
+    -fx-font-weight: bold;
+    -fx-text-fill: #000;
+    -fx-underline: true;
+}
+
+/* Style pour les horodatages */
+.message-time {
+    -fx-font-size: 0.8em;
+    -fx-text-fill: #757575;
+    -fx-padding: 0 0 0 8px;
+}
+
+/* Style pour le texte des messages */
+.message-text {
+    -fx-wrap-text: true;
+}
+
+/* Container pour le contenu du message et l'horodatage */
+.content-time-container {
+    -fx-alignment: baseline-right;
+    -fx-spacing: 5;
+}
+
+/* Style pour les statuts */
+.status-label {
+    -fx-text-fill: #757575;
+    -fx-font-style: italic;
+}
+
+/* Style pour l'en-tête */
+.header {
+    -fx-background-color: #4caf50;
+    -fx-padding: 10px;
+}
+
+.header-text {
+    -fx-text-fill: white;
+    -fx-font-size: 18px;
+}

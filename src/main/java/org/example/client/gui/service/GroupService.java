@@ -1,5 +1,8 @@
 package org.example.client.gui.service;
 
+import java.io.IOException;
+import java.util.List;
+
 import org.example.shared.dao.GroupDAO;
 import org.example.shared.dao.GroupMembershipDAO;
 import org.example.shared.model.Group;
@@ -32,5 +35,9 @@ public class GroupService {
             return true;
         }
         return false;
+    }
+    
+    public List<Group> getGroupsForUser(final long userId) throws IOException {
+        return groupDAO.getGroupsForUser(userId);
     }
 }
