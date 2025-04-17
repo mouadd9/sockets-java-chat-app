@@ -1,6 +1,7 @@
 package org.example.client.gui.controllers;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
@@ -25,6 +26,8 @@ import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -77,12 +80,58 @@ public class ChatController {
         contactListView.setItems(contacts);
         groupListView.setItems(groups);
 
-        // Configuration du CellFactory pour afficher uniquement le nom du groupe
+        // Pour les contacts
+        // Dans la méthode initialize(), modifiez le cell factory pour les contacts :
+        contactListView.setCellFactory(lv -> new ListCell<String>() {
+            @Override
+            protected void updateItem(final String email, final boolean empty) {
+                super.updateItem(email, empty);
+                if (empty || email == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    final HBox hbox = new HBox(10);
+                    String imageUrl;
+                    try {
+                        // Récupération de l'URL via ChatService, en gérant l'exception
+                        imageUrl = chatService.getUserProfilePicture(email);
+                    } catch (IOException e) {
+                        // En cas d'erreur, afficher un message et utiliser l'image par défaut
+                        System.err.println("Erreur lors de la récupération de l'image pour "
+                                + email + ": " + e.getMessage());
+                        imageUrl = null; // ou une URL d'image d'erreur spécifique si vous préférez
+                    }
+                    // Utiliser l'image par défaut si l'URL est nulle ou vide après la tentative
+                    if (imageUrl == null || imageUrl.isEmpty()) {
+                        imageUrl = "/images/default_avatar.png";
+                    }
+                    final ImageView avatar = createCircularAvatar(imageUrl, 30);
+                    final Label emailLabel = new Label(email);
+                    hbox.getChildren().addAll(avatar, emailLabel);
+                    setGraphic(hbox);
+                }
+            }
+        });
+
+        // Pour les groupes
         groupListView.setCellFactory(lv -> new ListCell<Group>() {
             @Override
-            protected void updateItem(final Group item, final boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty || item == null ? "" : item.getName());
+            protected void updateItem(final Group group, final boolean empty) {
+                super.updateItem(group, empty);
+                if (empty || group == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    final HBox hbox = new HBox(10);
+                    final String groupImageUrl = (group.getProfilePictureUrl() != null
+                            && !group.getProfilePictureUrl().isEmpty())
+                                    ? group.getProfilePictureUrl()
+                                    : "/images/default_group.png";
+                    final ImageView groupAvatar = createCircularAvatar(groupImageUrl, 30);
+                    final Label groupLabel = new Label(group.getName());
+                    hbox.getChildren().addAll(groupAvatar, groupLabel);
+                    setGraphic(hbox);
+                }
             }
         });
 
@@ -109,6 +158,35 @@ public class ChatController {
         messageField.setOnAction(this::handleSendMessage);
     }
 
+    // Méthode utilitaire pour charger une image à partir d'une URL (ressource)
+    private Image loadImage(String imageUrl, final double size) {
+        if (!imageUrl.startsWith("/")) {
+            imageUrl = "/images/" + imageUrl;
+        }
+        final InputStream stream = getClass().getResourceAsStream(imageUrl);
+        if (stream != null) {
+            return new Image(stream, size, size, true, true);
+        } else {
+            System.err.println("Image introuvable: " + imageUrl);
+            return null;
+        }
+    }
+
+    // Crée un ImageView avec un avatar circulaire
+    private ImageView createCircularAvatar(final String imageUrl, final double size) {
+        final ImageView imageView = new ImageView();
+        imageView.setFitWidth(size);
+        imageView.setFitHeight(size);
+        imageView.setPreserveRatio(true);
+        final javafx.scene.shape.Circle clip = new javafx.scene.shape.Circle(size / 2, size / 2, size / 2);
+        imageView.setClip(clip);
+        final Image image = loadImage(imageUrl, size);
+        if (image != null) {
+            imageView.setImage(image);
+        }
+        return imageView;
+    }
+
     // this function is called when we first create and cnofigure the controller
     // it sets dependencies, and somehow gets incoming messages that were received
     // when authenticating
@@ -133,7 +211,7 @@ public class ChatController {
             Platform.runLater(() -> {
                 groups.clear();
                 groups.addAll(groupList);
-                
+
             });
         } catch (final IOException e) {
             setStatus("Erreur lors du chargement des groupes : " + e.getMessage());

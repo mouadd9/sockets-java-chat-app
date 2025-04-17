@@ -12,11 +12,13 @@ public class User {
     private boolean isOnline;
     private LocalDateTime createdAt;
     private LocalDateTime lastLoginAt; // Peut être null
+    private String profilePictureUrl; // URL de l'image de profil
 
     // Constructeur par défaut
     public User() {
         this.createdAt = LocalDateTime.now();
         this.isOnline = false;
+        this.profilePictureUrl = "default_avatar.png"; // Image par défaut
     }
 
     // Constructeur pour la création initiale (avant sauvegarde)
@@ -27,7 +29,6 @@ public class User {
         this.passwordHash = passwordHash;
     }
 
-    // ...existing getters and setters...
     public long getId() { return id; }
     public void setId(final long id) { this.id = id; }
     public String getEmail() { return email; }
@@ -42,8 +43,13 @@ public class User {
     public void setCreatedAt(final LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getLastLoginAt() { return lastLoginAt; }
     public void setLastLoginAt(final LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+    public String getProfilePictureUrl() { 
+        return profilePictureUrl; 
+    }
+    public void setProfilePictureUrl(final String profilePictureUrl) { 
+        this.profilePictureUrl = profilePictureUrl; 
+    }
 
-    // ...equals, hashCode, toString...
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;

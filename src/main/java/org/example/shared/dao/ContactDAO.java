@@ -5,6 +5,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +23,8 @@ public class ContactDAO {
             stmt.setLong(2, contact.getContactUserId());
             stmt.setTimestamp(3, Timestamp.valueOf(contact.getAddedAt()));
             stmt.executeUpdate();
+        } catch (final SQLIntegrityConstraintViolationException ex) {
+            System.err.println("Contact déjà existant: " + ex.getMessage());
         } catch (final SQLException e) {
             e.printStackTrace();
         }

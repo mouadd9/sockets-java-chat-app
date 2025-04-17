@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     is_online BOOLEAN NOT NULL,
     created_at DATETIME NOT NULL,
-    last_login_at DATETIME NULL
+    last_login_at DATETIME NULL,
+    profile_picture_url VARCHAR(255) DEFAULT 'default_avatar.png'
 ) ENGINE=InnoDB;
 
 -- Table pour les contacts
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS `groups` (
     name VARCHAR(255) NOT NULL,
     owner_user_id BIGINT NOT NULL,
     created_at DATETIME NOT NULL,
+    profile_picture_url VARCHAR(255) DEFAULT 'default_group.png',
     FOREIGN KEY (owner_user_id) REFERENCES users(id)
 ) ENGINE=InnoDB;
 

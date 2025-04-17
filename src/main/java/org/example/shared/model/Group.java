@@ -9,6 +9,7 @@ public class Group {
     private String name;
     private long ownerUserId; // FK vers User.id
     private LocalDateTime createdAt;
+    private String profilePictureUrl; // Nouvelle propriété pour l'image
 
     // Constructeur par défaut
     public Group() {
@@ -32,6 +33,13 @@ public class Group {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(final LocalDateTime createdAt) { this.createdAt = createdAt; }
 
+    public String getProfilePictureUrl() {
+        return profilePictureUrl;
+    }
+    public void setProfilePictureUrl(final String profilePictureUrl) {
+        this.profilePictureUrl = profilePictureUrl;
+    }
+
     // ...equals, hashCode, toString...
     @Override
     public boolean equals(final Object o) {
@@ -48,6 +56,7 @@ public class Group {
 
     @Override
     public String toString() {
-        return "Group{" + "id=" + id + ", name='" + name + '\'' + ", ownerUserId=" + ownerUserId + '}';
+        return "Group{" + "id=" + id + ", name='" + name + '\'' +
+               ", ownerUserId=" + ownerUserId + '}';
     }
 }

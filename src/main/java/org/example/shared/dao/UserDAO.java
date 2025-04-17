@@ -12,7 +12,7 @@ import org.example.shared.model.User;
 public class UserDAO {
 
     public void createUser(final User user) {
-        final String sql = "INSERT INTO users (email, display_name, password_hash, is_online, created_at, last_login_at) VALUES (?,?,?,?,?,?)";
+        final String sql = "INSERT INTO users (email, display_name, password_hash, is_online, created_at, last_login_at, profile_picture_url) VALUES (?,?,?,?,?,?,?)";
         try (Connection conn = JDBCUtil.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
@@ -22,6 +22,7 @@ public class UserDAO {
             stmt.setBoolean(4, user.isOnline());
             stmt.setTimestamp(5, Timestamp.valueOf(user.getCreatedAt()));
             stmt.setTimestamp(6, user.getLastLoginAt() != null ? Timestamp.valueOf(user.getLastLoginAt()) : null);
+            stmt.setString(7, user.getProfilePictureUrl());
 
             stmt.executeUpdate();
             try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
@@ -52,6 +53,7 @@ public class UserDAO {
                     if (ts != null) {
                         user.setLastLoginAt(ts.toLocalDateTime());
                     }
+                    user.setProfilePictureUrl(rs.getString("profile_picture_url"));
                     return user;
                 }
             }
@@ -79,6 +81,7 @@ public class UserDAO {
                     if (ts != null) {
                         user.setLastLoginAt(ts.toLocalDateTime());
                     }
+                    user.setProfilePictureUrl(rs.getString("profile_picture_url"));
                     return user;
                 }
             }
@@ -89,7 +92,7 @@ public class UserDAO {
     }
 
     public void updateUser(final User user) {
-        final String sql = "UPDATE users SET email=?, display_name=?, password_hash=?, is_online=?, created_at=?, last_login_at=? WHERE id=?";
+        final String sql = "UPDATE users SET email=?, display_name=?, password_hash=?, is_online=?, created_at=?, last_login_at=?, profile_picture_url=? WHERE id=?";
         try (Connection conn = JDBCUtil.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
@@ -99,7 +102,8 @@ public class UserDAO {
             stmt.setBoolean(4, user.isOnline());
             stmt.setTimestamp(5, Timestamp.valueOf(user.getCreatedAt()));
             stmt.setTimestamp(6, user.getLastLoginAt() != null ? Timestamp.valueOf(user.getLastLoginAt()) : null);
-            stmt.setLong(7, user.getId());
+            stmt.setString(7, user.getProfilePictureUrl());
+            stmt.setLong(8, user.getId());
             stmt.executeUpdate();
         } catch (final SQLException e) {
             e.printStackTrace();

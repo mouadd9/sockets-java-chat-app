@@ -127,6 +127,14 @@ public class ChatService {
         return user.getEmail();
     }
 
+    public String getUserProfilePicture(final String email) throws IOException {
+        var user = userDAO.findUserByEmail(email); // récupération de l'utilisateur depuis le DAO
+        if (user != null && user.getProfilePictureUrl() != null && !user.getProfilePictureUrl().isEmpty()){
+            return user.getProfilePictureUrl();
+        }
+        return "/images/default_avatar.png";
+    }
+
     public Message createDirectMessage(final String senderEmail, final String receiverEmail, final String content)
             throws IOException {
         final User sender = userDAO.findUserByEmail(senderEmail);

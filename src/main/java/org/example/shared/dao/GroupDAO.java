@@ -14,14 +14,15 @@ import org.example.shared.model.Group;
 public class GroupDAO {
 
     public void createGroup(final Group group) {
-        // Utilisation de backticks pour le nom de la table "groups"
-        final String sql = "INSERT INTO `groups` (name, owner_user_id, created_at) VALUES (?,?,?)";
+        // Mise à jour de la requête pour inclure profile_picture_url
+        final String sql = "INSERT INTO `groups` (name, owner_user_id, created_at, profile_picture_url) VALUES (?,?,?,?)";
         try (Connection conn = JDBCUtil.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
             stmt.setString(1, group.getName());
             stmt.setLong(2, group.getOwnerUserId());
             stmt.setTimestamp(3, Timestamp.valueOf(group.getCreatedAt()));
+            stmt.setString(4, group.getProfilePictureUrl());
             stmt.executeUpdate();
             try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
                 if (generatedKeys.next()) {
@@ -46,6 +47,7 @@ public class GroupDAO {
                     group.setName(rs.getString("name"));
                     group.setOwnerUserId(rs.getLong("owner_user_id"));
                     group.setCreatedAt(rs.getTimestamp("created_at").toLocalDateTime());
+                    group.setProfilePictureUrl(rs.getString("profile_picture_url"));
                 }
             }
         } catch (final SQLException e) {
