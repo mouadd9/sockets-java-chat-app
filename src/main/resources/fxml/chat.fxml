@@ -31,7 +31,7 @@
                 </HBox>
                 <!-- Nouvelle section pour les groupes -->
                 <Label text="Groupes" style="-fx-font-weight: bold; -fx-padding: 10 0 0 0;"/>
-                <ListView fx:id="groupListView" onMouseClicked="#handleSelectGroup" VBox.vgrow="ALWAYS"/>
+                <ListView fx:id="groupListView" VBox.vgrow="ALWAYS"/>
                 <!-- Section de création de groupe -->
                 <HBox spacing="5">
                     <TextField fx:id="groupNameField" promptText="Nom du groupe" HBox.hgrow="ALWAYS"/>
