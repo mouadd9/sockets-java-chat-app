@@ -9,12 +9,10 @@ import java.net.Socket;
 import java.util.List;
 import java.util.function.Consumer;
 
-import org.example.shared.dao.ContactDAO;
 import org.example.shared.dao.GroupDAO;
 import org.example.shared.dao.MessageDAO;
 import org.example.shared.dao.UserDAO;
 import org.example.shared.dto.Credentials;
-import org.example.shared.model.Contact;
 import org.example.shared.model.Group;
 import org.example.shared.model.Message;
 import org.example.shared.model.User;
@@ -38,14 +36,13 @@ public class ChatService {
     // Instances DAO et persistance locale
     private final MessageDAO messageDAO;
     private final UserDAO userDAO;
-    private final ContactDAO contactDAO;
-    private final GroupDAO groupDAO = new GroupDAO(); // Ajout du DAO de groupe
+    private final GroupDAO groupDAO;
 
     public ChatService() {
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         this.messageDAO = new MessageDAO();
         this.userDAO = new UserDAO();
-        this.contactDAO = new ContactDAO();
+        this.groupDAO = new GroupDAO();
     }
 
     public boolean connect(final Credentials credentials) throws IOException {
@@ -89,17 +86,27 @@ public class ChatService {
         logoutMsg.setSenderUserId(getCurrentUserId());
         out.println(objectMapper.writeValueAsString(logoutMsg));
 
-        if (out != null)
-            out.close();
-        if (in != null)
-            in.close();
-        if (socket != null)
-            socket.close();
+        closeResources();
 
         userEmail = null;
         messageConsumer = null;
         isRunning = false;
         System.out.println("Déconnexion complète");
+    }
+
+    private void closeResources() {
+        try {
+            if (out != null) out.close();
+        } catch (final Exception e) { /* Ignorer */ }
+        try {
+            if (in != null) in.close();
+        } catch (final Exception e) { /* Ignorer */ }
+        try {
+            if (socket != null && !socket.isClosed()) socket.close();
+        } catch (final IOException e) { /* Ignorer */ }
+        out = null;
+        in = null;
+        socket = null;
     }
 
     public long getCurrentUserId() {
@@ -128,7 +135,7 @@ public class ChatService {
     }
 
     public String getUserProfilePicture(final String email) throws IOException {
-        var user = userDAO.findUserByEmail(email); // récupération de l'utilisateur depuis le DAO
+        final var user = userDAO.findUserByEmail(email); // récupération de l'utilisateur depuis le DAO
         if (user != null && user.getProfilePictureUrl() != null && !user.getProfilePictureUrl().isEmpty()){
             return user.getProfilePictureUrl();
         }
@@ -185,34 +192,6 @@ public class ChatService {
         return messageDAO.getConversation(user1.getId(), user2.getId());
     }
 
-    public List<String> getContacts(final String userEmail) throws IOException {
-        final User user = userDAO.findUserByEmail(userEmail);
-        if (user == null) {
-            throw new IOException("Utilisateur non trouvé");
-        }
-        return contactDAO.getContactsByUserId(user.getId());
-    }
-
-    public boolean addContact(final String userEmail, final String contactEmail) throws IOException {
-        final User sender = userDAO.findUserByEmail(userEmail);
-        final User contact = userDAO.findUserByEmail(contactEmail);
-        if (sender == null || contact == null) {
-            throw new IllegalArgumentException("Utilisateur non trouvé");
-        }
-        final Contact newContact = new Contact(sender.getId(), contact.getId());
-        contactDAO.createContact(newContact);
-        return true;
-    }
-
-    public boolean removeContact(final String userEmail, final String contactEmail) throws IOException {
-        final User sender = userDAO.findUserByEmail(userEmail);
-        final User contact = userDAO.findUserByEmail(contactEmail);
-        if (sender == null || contact == null) {
-            throw new IllegalArgumentException("Utilisateur non trouvé");
-        }
-        return contactDAO.deleteContact(sender.getId(), contact.getId());
-    }
-
     public void setMessageConsumer(final Consumer<Message> consumer) {
         this.messageConsumer = consumer;
     }
@@ -251,5 +230,13 @@ public class ChatService {
             throw new IOException("Utilisateur non trouvé pour " + userEmail);
         }
         return groupDAO.getGroupsForUser(sender.getId());
+    }
+
+    public Group getGroupById(final long groupId) throws IOException {
+        final Group group = groupDAO.findGroupById(groupId);
+        if (group == null) {
+            System.err.println("Avertissement: Groupe non trouvé pour l'ID: " + groupId);
+        }
+        return group;
     }
 }

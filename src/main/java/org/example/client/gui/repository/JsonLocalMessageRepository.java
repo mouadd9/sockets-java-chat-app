@@ -5,7 +5,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.example.shared.model.Message;
@@ -130,5 +132,21 @@ public class JsonLocalMessageRepository {
                 || (m.getSenderUserId() == contactId && m.getReceiverUserId() != null
                         && m.getReceiverUserId() == myId));
         saveLocalMessages(userEmail, messages);
+    }
+
+    /**
+     * Récupère le dernier message échangé avec un contact spécifique.
+     */
+    public Optional<Message> getLastContactMessage(final String userEmail, final long myId, final long contactId) throws IOException {
+        return loadContactMessages(userEmail, myId, contactId).stream()
+                .max(Comparator.comparing(Message::getTimestamp));
+    }
+
+    /**
+     * Récupère le dernier message d'un groupe spécifique.
+     */
+    public Optional<Message> getLastGroupMessage(final String userEmail, final long groupId) throws IOException {
+        return loadGroupMessages(userEmail, groupId).stream()
+                .max(Comparator.comparing(Message::getTimestamp));
     }
 }

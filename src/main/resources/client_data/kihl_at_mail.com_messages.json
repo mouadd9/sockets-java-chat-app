@@ -1,9 +1,0 @@
-[ {
-  "id" : 0,
-  "senderUserId" : 3,
-  "receiverUserId" : 4,
-  "groupId" : null,
-  "content" : "test",
-  "timestamp" : [ 2025, 4, 17, 17, 33, 3, 306796000 ],
-  "status" : "SENT"
-} ]

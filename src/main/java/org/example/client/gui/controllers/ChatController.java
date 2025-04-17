@@ -4,9 +4,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 
 import org.example.client.gui.repository.JsonLocalMessageRepository;
 import org.example.client.gui.service.ChatService;
+import org.example.client.gui.service.ContactService;
 import org.example.client.gui.service.GroupService;
 import org.example.shared.model.Group;
 import org.example.shared.model.Message;
@@ -31,6 +33,8 @@ import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
 public class ChatController {
@@ -73,6 +77,7 @@ public class ChatController {
     private static final DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
     private final JsonLocalMessageRepository localRepo = new JsonLocalMessageRepository();
     private final GroupService groupService = new GroupService();
+    private final ContactService contactService = new ContactService();
     private final Object loadLock = new Object(); // verrou pour synchroniser le chargement
 
     @FXML
@@ -81,8 +86,19 @@ public class ChatController {
         groupListView.setItems(groups);
 
         // Pour les contacts
-        // Dans la méthode initialize(), modifiez le cell factory pour les contacts :
         contactListView.setCellFactory(lv -> new ListCell<String>() {
+            private final ImageView avatar = createCircularAvatar(null, 30);
+            private final Label emailLabel = new Label();
+            private final Label lastMessageLabel = new Label();
+            private final VBox textVBox = new VBox(emailLabel, lastMessageLabel);
+            private final HBox hbox = new HBox(10, avatar, textVBox);
+
+            {
+                lastMessageLabel.setTextFill(Color.GRAY);
+                lastMessageLabel.setFont(Font.font("System", FontWeight.NORMAL, 12));
+                hbox.setAlignment(Pos.CENTER_LEFT);
+            }
+
             @Override
             protected void updateItem(final String email, final boolean empty) {
                 super.updateItem(email, empty);
@@ -90,31 +106,49 @@ public class ChatController {
                     setText(null);
                     setGraphic(null);
                 } else {
-                    final HBox hbox = new HBox(10);
-                    String imageUrl;
+                    emailLabel.setText(email);
+                    String imageUrl = "/images/default_avatar.png";
+                    String lastMsgText = "";
+
                     try {
-                        // Récupération de l'URL via ChatService, en gérant l'exception
-                        imageUrl = chatService.getUserProfilePicture(email);
-                    } catch (IOException e) {
-                        // En cas d'erreur, afficher un message et utiliser l'image par défaut
-                        System.err.println("Erreur lors de la récupération de l'image pour "
-                                + email + ": " + e.getMessage());
-                        imageUrl = null; // ou une URL d'image d'erreur spécifique si vous préférez
+                        if (chatService != null) {
+                            imageUrl = chatService.getUserProfilePicture(email);
+                            final long myId = chatService.getCurrentUserId();
+                            final long contactId = chatService.getUserId(email);
+                            final Optional<Message> lastMsgOpt = localRepo.getLastContactMessage(userEmail, myId,
+                                    contactId);
+                            if (lastMsgOpt.isPresent()) {
+                                final Message lastMsg = lastMsgOpt.get();
+                                final String prefix = lastMsg.getSenderUserId() == myId ? "Vous: " : "";
+                                lastMsgText = prefix + truncate(lastMsg.getContent(), 30);
+                            }
+                        }
+                    } catch (final IOException e) {
+                        lastMsgText = "Erreur chargement";
                     }
-                    // Utiliser l'image par défaut si l'URL est nulle ou vide après la tentative
-                    if (imageUrl == null || imageUrl.isEmpty()) {
-                        imageUrl = "/images/default_avatar.png";
-                    }
-                    final ImageView avatar = createCircularAvatar(imageUrl, 30);
-                    final Label emailLabel = new Label(email);
-                    hbox.getChildren().addAll(avatar, emailLabel);
+
+                    final Image img = loadImage(imageUrl, 30);
+                    avatar.setImage(img != null ? img : loadImage("/images/default_avatar.png", 30));
+                    lastMessageLabel.setText(lastMsgText);
                     setGraphic(hbox);
                 }
             }
         });
 
-        // Pour les groupes
+        // CellFactory pour les groupes
         groupListView.setCellFactory(lv -> new ListCell<Group>() {
+            private final ImageView avatar = createCircularAvatar(null, 30);
+            private final Label nameLabel = new Label();
+            private final Label lastMessageLabel = new Label();
+            private final VBox textVBox = new VBox(nameLabel, lastMessageLabel);
+            private final HBox hbox = new HBox(10, avatar, textVBox);
+
+            {
+                lastMessageLabel.setTextFill(Color.GRAY);
+                lastMessageLabel.setFont(Font.font("System", FontWeight.NORMAL, 12));
+                hbox.setAlignment(Pos.CENTER_LEFT);
+            }
+
             @Override
             protected void updateItem(final Group group, final boolean empty) {
                 super.updateItem(group, empty);
@@ -122,14 +156,55 @@ public class ChatController {
                     setText(null);
                     setGraphic(null);
                 } else {
-                    final HBox hbox = new HBox(10);
-                    final String groupImageUrl = (group.getProfilePictureUrl() != null
-                            && !group.getProfilePictureUrl().isEmpty())
-                                    ? group.getProfilePictureUrl()
-                                    : "/images/default_group.png";
-                    final ImageView groupAvatar = createCircularAvatar(groupImageUrl, 30);
-                    final Label groupLabel = new Label(group.getName());
-                    hbox.getChildren().addAll(groupAvatar, groupLabel);
+                    nameLabel.setText(group.getName());
+                    String imageUrl = group.getProfilePictureUrl();
+                    if (imageUrl == null || imageUrl.isEmpty()) {
+                        imageUrl = "/images/default_group.png";
+                    }
+                    String lastMsgText = "";
+
+                    try {
+                        // Récupérer le dernier message du groupe
+                        Optional<Message> lastMsgOpt = localRepo.getLastGroupMessage(userEmail, group.getId());
+                        if (lastMsgOpt.isPresent()) {
+                            Message lastMsg = lastMsgOpt.get();
+                            String senderName = "Quelqu'un"; // Nom par défaut
+                            long myId = -1; // ID par défaut
+
+                            if (chatService != null) { // Vérifier si chatService est initialisé
+                                myId = chatService.getCurrentUserId();
+                                try {
+                                    // Essayer de récupérer l'email de l'expéditeur pour l'affichage
+                                    // Gérer l'IOException ici
+                                    senderName = chatService.getUserEmail(lastMsg.getSenderUserId()); // Peut lancer
+                                                                                                      // IOException
+                                    senderName = senderName.split("@")[0]; // Juste la partie avant @
+                                } catch (IOException e) {
+                                    System.err.println("Erreur cellFactory groupe (getUserEmail): " + e.getMessage());
+                                    senderName = "Inconnu"; // Utiliser un nom de fallback en cas d'erreur
+                                }
+                            }
+
+                            String prefix = (chatService != null && lastMsg.getSenderUserId() == myId) ? "Vous: "
+                                    : senderName + ": ";
+                            lastMsgText = prefix + truncate(lastMsg.getContent(), 30);
+                        }
+                    } catch (IOException e) {
+                        System.err.println("Erreur cellFactory groupe (getLastGroupMessage) (" + group.getName() + "): "
+                                + e.getMessage());
+                        lastMsgText = "Erreur chargement";
+                    } catch (NullPointerException npe) {
+                        System.err.println(
+                                "Erreur cellFactory groupe (" + group.getName() + "): chatService non initialisé?");
+                    }
+
+                    Image img = loadImage(imageUrl, 30);
+                    if (img != null) {
+                        avatar.setImage(img);
+                    } else {
+                        avatar.setImage(loadImage("/images/default_group.png", 30)); // Fallback
+                    }
+                    lastMessageLabel.setText(lastMsgText);
                     setGraphic(hbox);
                 }
             }
@@ -160,14 +235,23 @@ public class ChatController {
 
     // Méthode utilitaire pour charger une image à partir d'une URL (ressource)
     private Image loadImage(String imageUrl, final double size) {
+        if (imageUrl == null) {
+            System.err.println("L'URL de l'image est null, utilisation d'un fallback");
+            return null;
+        }
+        // Si l'URL ne commence pas par '/' on ajoute par défaut "/images/"
         if (!imageUrl.startsWith("/")) {
             imageUrl = "/images/" + imageUrl;
         }
-        final InputStream stream = getClass().getResourceAsStream(imageUrl);
-        if (stream != null) {
-            return new Image(stream, size, size, true, true);
-        } else {
-            System.err.println("Image introuvable: " + imageUrl);
+        try (InputStream stream = getClass().getResourceAsStream(imageUrl)) {
+            if (stream != null) {
+                return new Image(stream, size, size, true, true);
+            } else {
+                System.err.println("Image introuvable: " + imageUrl);
+                return null;
+            }
+        } catch (IOException e) {
+            System.err.println("Erreur lors du chargement de l'image " + imageUrl + ": " + e.getMessage());
             return null;
         }
     }
@@ -261,7 +345,7 @@ public class ChatController {
         }
 
         try {
-            final boolean added = chatService.addContact(userEmail, email);
+            final boolean added = contactService.addContact(userEmail, email);
             if (added) {
                 contacts.add(email);
                 newContactField.clear();
@@ -282,7 +366,7 @@ public class ChatController {
             return;
         }
         try {
-            final boolean removed = chatService.removeContact(userEmail, selectedContact);
+            final boolean removed = contactService.removeContact(userEmail, selectedContact);
             if (removed) {
                 contacts.remove(selectedContact);
                 chatHistoryContainer.getChildren().clear();
@@ -374,7 +458,7 @@ public class ChatController {
 
     private void loadContacts() {
         try {
-            final List<String> contactList = chatService.getContacts(userEmail);
+            final List<String> contactList = contactService.getContacts(userEmail);
             Platform.runLater(() -> {
                 contacts.clear();
                 contacts.addAll(contactList);
@@ -529,5 +613,9 @@ public class ChatController {
                 }
             }
         });
+    }
+
+    private String truncate(final String text, final int maxLength) {
+        return text.length() > maxLength ? text.substring(0, maxLength) + "..." : text;
     }
 }
