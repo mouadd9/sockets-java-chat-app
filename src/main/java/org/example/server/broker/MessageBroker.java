@@ -17,6 +17,7 @@ public class MessageBroker {
     private static MessageBroker instance;
     private final Map<Long, MessageQueue> userQueues;
     private final MessageDAO messageDAO;
+    final GroupDAO groupDAO;
 
     public static synchronized MessageBroker getInstance() {
         if (instance == null) {
@@ -28,6 +29,7 @@ public class MessageBroker {
     private MessageBroker() {
         this.userQueues = new ConcurrentHashMap<>();
         this.messageDAO = new MessageDAO();
+        this.groupDAO = new GroupDAO();
     }
 
     public void registerListener(final long userId, final ClientHandler listener) {
@@ -46,26 +48,26 @@ public class MessageBroker {
     }
 
     public void sendMessage(final Message message) {
+        
         if (message.isGroupMessage()) {
-            // Récupérer les membres du groupe via GroupDAO
-            final GroupDAO groupDAO = new GroupDAO();
             final List<Long> groupMemberIds = groupDAO.getMembersForGroup(message.getGroupId());
             for (final Long memberId : groupMemberIds) {
                 // Ignorer l'expéditeur
                 if (memberId != message.getSenderUserId()) {
-                    final Message messageCopy = copyMessageForRecipient(message);
                     final MessageQueue queue = getOrCreateQueue(memberId);
-                    if (queue != null && queue.tryDeliver(messageCopy)) {
-                        messageCopy.setStatus(MessageStatus.DELIVERED);
+                    if (queue != null ) {
+                        message.setStatus(MessageStatus.DELIVERED);
+                        queue.tryDeliver(message);
                     } else {
-                        persistMessage(messageCopy);
+                        persistMessage(message);
                     }
                 }
             }
         } else {
             final MessageQueue queue = userQueues.get(message.getReceiverUserId());
-            if (queue != null && queue.tryDeliver(message)) {
+            if (queue != null) {
                 message.setStatus(MessageStatus.DELIVERED);
+                queue.tryDeliver(message);
             } else {
                 persistMessage(message);
             }
@@ -83,15 +85,6 @@ public class MessageBroker {
 
     private MessageQueue getOrCreateQueue(final long userId) {
         return userQueues.computeIfAbsent(userId, MessageQueue::new);
-    }
-
-    private Message copyMessageForRecipient(final Message originalMessage) {
-        final Message copy = new Message();
-        copy.setSenderUserId(originalMessage.getSenderUserId());
-        copy.setContent(originalMessage.getContent());
-        copy.setTimestamp(originalMessage.getTimestamp());
-        copy.setGroupId(originalMessage.getGroupId());
-        return copy;
     }
 
     private class MessageQueue {

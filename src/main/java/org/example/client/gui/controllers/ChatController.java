@@ -40,13 +40,20 @@ import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
 public class ChatController {
-    @FXML private Label userEmailLabel;
-    @FXML private ListView<User> contactListView;
-    @FXML private ListView<Group> groupListView;
-    @FXML private TextField newContactField, messageField, groupNameField, memberEmailField;
-    @FXML private VBox chatHistoryContainer;
-    @FXML private ScrollPane chatScrollPane;
-    @FXML private Label statusLabel;
+    @FXML
+    private Label userEmailLabel;
+    @FXML
+    private ListView<User> contactListView;
+    @FXML
+    private ListView<Group> groupListView;
+    @FXML
+    private TextField newContactField, messageField, groupNameField, memberEmailField;
+    @FXML
+    private VBox chatHistoryContainer;
+    @FXML
+    private ScrollPane chatScrollPane;
+    @FXML
+    private Label statusLabel;
 
     private ChatService chatService;
     private String userEmail;
@@ -55,7 +62,7 @@ public class ChatController {
 
     private final ObservableList<User> contacts = FXCollections.observableArrayList();
     private final ObservableList<Group> groups = FXCollections.observableArrayList();
-    
+
     private final JsonLocalMessageRepository localRepo = new JsonLocalMessageRepository();
     private final ContactService contactService = new ContactService();
     private final GroupService groupService = new GroupService();
@@ -71,48 +78,48 @@ public class ChatController {
         groupListView.setItems(groups);
 
         contactListView.setCellFactory(list -> createCell(
-            user -> user.getDisplayNameOrEmail(),
-            user -> {
-                try {
-                    return localRepo.getLastContactMessage(userEmail, 
-                            chatService.getCurrentUserId(), 
-                            user.getId());
-                } catch (final IOException e) {
-                    return Optional.empty();
-                }
-            },
-            User::getAvatarUrl,
-            msg -> msg.map(m -> {
-                try {
-                    final String prefix = (m.getSenderUserId() == chatService.getCurrentUserId()) ? "Vous: " : "";
-                    return prefix + truncate(m.getContent(), 30);
-                } catch (final Exception e) {
-                    return "Erreur chargement";
-                }
-            }).orElse("")
-        ));
+                user -> user.getDisplayNameOrEmail(),
+                user -> {
+                    try {
+                        return localRepo.getLastContactMessage(userEmail,
+                                chatService.getCurrentUserId(),
+                                user.getId());
+                    } catch (final IOException e) {
+                        return Optional.empty();
+                    }
+                },
+                User::getAvatarUrl,
+                msg -> msg.map(m -> {
+                    try {
+                        final String prefix = (m.getSenderUserId() == chatService.getCurrentUserId()) ? "Vous: " : "";
+                        return prefix + truncate(m.getContent(), 30);
+                    } catch (final Exception e) {
+                        return "Erreur chargement";
+                    }
+                }).orElse("")));
 
         groupListView.setCellFactory(list -> createCell(
-            group -> group.getName(),
-            group -> {
-                try {
-                    return localRepo.getLastGroupMessage(userEmail, group.getId());
-                } catch (final IOException e) {
-                    return Optional.empty();
-                }
-            },
-            group -> Optional.ofNullable(group.getProfilePictureUrl())
-                    .filter(u -> !u.isEmpty())
-                    .orElse("/images/default_group.png"),
-            msg -> msg.map(m -> {
-                String name = "Inconnu";
-                try { 
-                    name = userService.getUserById(m.getSenderUserId()).getEmail().split("@")[0];
-                } catch (final IOException e) { /* ignore */ }
-                final String prefix = (m.getSenderUserId() == chatService.getCurrentUserId()? "Vous: ": name+": ");
-                return prefix + truncate(m.getContent(), 30);
-            }).orElse("")
-        ));
+                group -> group.getName(),
+                group -> {
+                    try {
+                        return localRepo.getLastGroupMessage(userEmail, group.getId());
+                    } catch (final IOException e) {
+                        return Optional.empty();
+                    }
+                },
+                group -> Optional.ofNullable(group.getProfilePictureUrl())
+                        .filter(u -> !u.isEmpty())
+                        .orElse("/images/default_group.png"),
+                msg -> msg.map(m -> {
+                    String name = "Inconnu";
+                    try {
+                        name = userService.getUserById(m.getSenderUserId()).getEmail().split("@")[0];
+                    } catch (final IOException e) {
+                        /* ignore */ }
+                    final String prefix = (m.getSenderUserId() == chatService.getCurrentUserId() ? "Vous: "
+                            : name + ": ");
+                    return prefix + truncate(m.getContent(), 30);
+                }).orElse("")));
 
         contactListView.getSelectionModel().selectedItemProperty().addListener((obs, old, sel) -> {
             if (sel != null) {
@@ -123,7 +130,7 @@ public class ChatController {
                 setStatus("Conversation chargée avec " + selectedContactUser.getDisplayNameOrEmail());
             }
         });
-        
+
         groupListView.getSelectionModel().selectedItemProperty().addListener((obs, old, sel) -> {
             if (sel != null) {
                 contactListView.getSelectionModel().clearSelection();
@@ -162,7 +169,7 @@ public class ChatController {
                 lastMsgLabel.setTextFill(Color.GRAY);
                 lastMsgLabel.setFont(Font.font("System", FontWeight.NORMAL, 12));
                 hbox.setAlignment(Pos.CENTER_LEFT);
-                
+
                 // Définir une image par défaut pour éviter les problèmes d'initialisation
                 try (InputStream defaultImageStream = getClass().getResourceAsStream("/images/default_avatar.png")) {
                     if (defaultImageStream != null) {
@@ -172,19 +179,19 @@ public class ChatController {
                     System.err.println("Impossible de charger l'image par défaut: " + e.getMessage());
                 }
             }
-            
-            @Override 
+
+            @Override
             protected void updateItem(final T item, final boolean empty) {
                 super.updateItem(item, empty);
-                if (empty || item == null) { 
+                if (empty || item == null) {
                     setText(null);
-                    setGraphic(null); 
-                    return; 
+                    setGraphic(null);
+                    return;
                 }
-                
+
                 nameLabel.setText(nameFn.apply(item));
                 final String url = avatarUrlFn.apply(item);
-                if (url != null) {  // Éviter de passer une URL null à loadImage
+                if (url != null) { // Éviter de passer une URL null à loadImage
                     final Image img = loadImage(url, 30);
                     if (img != null) {
                         avatar.setImage(img);
@@ -198,13 +205,13 @@ public class ChatController {
     }
 
     private Image loadImage(final String imageUrl, final double size) {
-        
+
         try (InputStream stream = getClass().getResourceAsStream(imageUrl)) {
             if (stream != null) {
                 return new Image(stream, size, size, true, true);
             } else {
-                final String fallback = imageUrl.contains("group") ? 
-                    "/images/default_group.png" : "/images/default_avatar.png";
+                final String fallback = imageUrl.contains("group") ? "/images/default_group.png"
+                        : "/images/default_avatar.png";
                 try (InputStream fallbackStream = getClass().getResourceAsStream(fallback)) {
                     if (fallbackStream != null) {
                         return new Image(fallbackStream, size, size, true, true);
@@ -224,8 +231,86 @@ public class ChatController {
         imageView.setPreserveRatio(true);
         final javafx.scene.shape.Circle clip = new javafx.scene.shape.Circle(size / 2, size / 2, size / 2);
         imageView.setClip(clip);
-        
+
         return imageView;
+    }
+
+    private void addMessageToChat(final Message message) {
+        try {
+            final User sender = userService.getUserById(message.getSenderUserId());
+            final User currentUser = userService.getUserByEmail(userEmail);
+            final boolean isMine = message.getSenderUserId() == currentUser.getId();
+            final boolean isGroup = message.getGroupId() != null;
+
+            final HBox messageContainer = new HBox(10);
+            messageContainer.getStyleClass().add("message-container");
+            messageContainer.setAlignment(isMine ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
+            messageContainer.setPadding(new Insets(5));
+            messageContainer.setMaxWidth(chatHistoryContainer.getWidth() * 0.8);
+
+            // Avatar
+            final ImageView avatar = createCircularAvatar(sender.getAvatarUrl(), 35);
+            avatar.getStyleClass().add("message-avatar");
+            if (!isMine)
+                messageContainer.getChildren().add(avatar);
+
+            // Contenu du message
+            final VBox contentBox = new VBox(5);
+            contentBox.getStyleClass().add("message-content");
+            contentBox.getStyleClass().add(isMine ? "my-message" : "other-message");
+
+            if (isGroup && !isMine) {
+                final Label nameLabel = new Label(sender.getDisplayNameOrEmail());
+                nameLabel.getStyleClass().add("sender-name");
+                contentBox.getChildren().add(nameLabel);
+            }
+
+            // Créer un conteneur horizontal pour le texte et l'horodatage
+            final HBox contentTimeContainer = new HBox();
+            contentTimeContainer.getStyleClass().add("content-time-container");
+
+            // Texte du message
+            final Label contentLabel = new Label(message.getContent());
+            contentLabel.setWrapText(true);
+            contentLabel.getStyleClass().add("message-text");
+            contentLabel.setMaxWidth(chatHistoryContainer.getWidth() * 0.6); // Pour laisser de la place à l'horodatage
+
+            // Horodatage
+            final Label timeLabel = new Label(message.getTimestamp().format(TIME_FMT));
+            timeLabel.getStyleClass().add("message-time");
+
+            // Assembler le conteneur de message
+            contentTimeContainer.getChildren().addAll(contentLabel, timeLabel);
+            contentBox.getChildren().add(contentTimeContainer);
+            messageContainer.getChildren().add(contentBox);
+
+            if (isMine)
+                messageContainer.getChildren().add(avatar);
+
+            Platform.runLater(() -> {
+                chatHistoryContainer.getChildren().add(messageContainer);
+                scrollToBottom();
+            });
+        } catch (final IOException e) {
+            setStatus("Erreur d'affichage du message : " + e.getMessage());
+        }
+    }
+
+    private void scrollToBottom() {
+        Platform.runLater(() -> {
+            chatScrollPane.setVvalue(1.0);
+        });
+    }
+
+    private void setStatus(final String status) {
+        Platform.runLater(() -> {
+            statusLabel.setText(status);
+            statusLabel.getStyleClass().add("status-label");
+        });
+    }
+
+    private String truncate(final String text, final int maxLength) {
+        return text.length() > maxLength ? text.substring(0, maxLength) + "..." : text;
     }
 
     private void loadContacts() {
@@ -255,18 +340,17 @@ public class ChatController {
 
     private void loadContactConversation(final User contactUser) {
         Platform.runLater(() -> {
-            synchronized (loadLock) {
-                chatHistoryContainer.getChildren().clear();
-                try {
-                    final long myId = userService.getUserByEmail(userEmail).getId();
-                    final long contactId = contactUser.getId();
-                    final List<Message> contactMessages = localRepo.loadContactMessages(userEmail, myId, contactId);
-                    contactMessages.forEach(this::addMessageToChat);
-                    scrollToBottom();
-                } catch (final IOException e) {
-                    setStatus("Erreur lors du chargement de la conversation avec " + contactUser.getDisplayNameOrEmail() + " : "
-                            + e.getMessage());
-                }
+            chatHistoryContainer.getChildren().clear();
+            try {
+                final long myId = userService.getUserByEmail(userEmail).getId();
+                final long contactId = contactUser.getId();
+                final List<Message> contactMessages = localRepo.loadContactMessages(userEmail, myId, contactId);
+                contactMessages.forEach(this::addMessageToChat);
+                scrollToBottom();
+            } catch (final IOException e) {
+                setStatus("Erreur lors du chargement de la conversation avec " + contactUser.getDisplayNameOrEmail()
+                        + " : "
+                        + e.getMessage());
             }
         });
     }
@@ -302,7 +386,7 @@ public class ChatController {
             } else if (selectedGroup != null) {
                 final User sender = userService.getUserByEmail(userEmail);
                 message = Message.newGroupMessage(sender.getId(), selectedGroup.getId(), content);
-                chatService.sendGroupMessage(message);
+                chatService.sendMessage(message);
             } else {
                 setStatus("Veuillez sélectionner un groupe ou un contact.");
                 return;
@@ -325,7 +409,7 @@ public class ChatController {
         Platform.runLater(() -> {
             try {
                 localRepo.addLocalMessage(userEmail, message);
-                
+
                 // Message de groupe
                 if (message.getGroupId() != null) {
                     // Vérifier si le groupe est déjà dans la liste, sinon recharger les groupes
@@ -336,118 +420,36 @@ public class ChatController {
                     } else {
                         groupListView.refresh();
                     }
-                    
+
                     // Afficher le message si le groupe est actuellement sélectionné
                     if (selectedGroup != null && selectedGroup.getId() == message.getGroupId()) {
                         addMessageToChat(message);
                     }
                     setStatus("Nouveau message de groupe reçu");
-                } 
+                }
                 // Message direct
                 else {
                     final User sender = userService.getUserById(message.getSenderUserId());
-                    final User receiver = message.getReceiverUserId() != null ? 
-                            userService.getUserById(message.getReceiverUserId()) : null;
-                    
-                    final User otherUser = sender.getEmail().equals(userEmail) ? receiver : sender;
-                    
+
                     // Ajouter le contact s'il n'existe pas
-                    if (otherUser != null && !contacts.contains(otherUser)) {
-                        contacts.add(otherUser);
+                    if (sender != null && !contacts.contains(sender)) {
+                        contacts.add(sender);
                     }
                     contactListView.refresh();
-                    
-                    // Si aucune conversation n'est sélectionnée, sélectionner celle-ci
-                    if (selectedContactUser == null && selectedGroup == null && otherUser != null) {
-                        contactListView.getSelectionModel().select(otherUser);
-                    }
-                    
+
                     // Afficher le message si la conversation est actuellement sélectionnée
-                    if (selectedContactUser != null && 
-                            (sender.getId() == selectedContactUser.getId() || 
-                             (receiver != null && receiver.getId() == selectedContactUser.getId()))) {
+                    if (selectedContactUser != null &&
+                            sender.getId() == selectedContactUser.getId()) {
                         addMessageToChat(message);
                     }
-                    
+
                     setStatus("Nouveau message reçu");
                 }
-                
+
                 scrollToBottom();
             } catch (final IOException e) {
                 setStatus("Erreur lors du traitement du message : " + e.getMessage());
             }
-        });
-    }
-
-    private void addMessageToChat(final Message message) {
-        try {
-            final User sender = userService.getUserById(message.getSenderUserId());
-            final User currentUser = userService.getUserByEmail(userEmail);
-            final boolean isMine = message.getSenderUserId() == currentUser.getId();
-            final boolean isGroup = message.getGroupId() != null;
-
-            final HBox messageContainer = new HBox(10);
-            messageContainer.getStyleClass().add("message-container");
-            messageContainer.setAlignment(isMine ? Pos.CENTER_RIGHT : Pos.CENTER_LEFT);
-            messageContainer.setPadding(new Insets(5));
-            messageContainer.setMaxWidth(chatHistoryContainer.getWidth() * 0.8);
-
-            // Avatar
-            final ImageView avatar = createCircularAvatar(sender.getAvatarUrl(), 35);
-            avatar.getStyleClass().add("message-avatar");
-            if (!isMine) messageContainer.getChildren().add(avatar);
-
-            // Contenu du message
-            final VBox contentBox = new VBox(5);
-            contentBox.getStyleClass().add("message-content");
-            contentBox.getStyleClass().add(isMine ? "my-message" : "other-message");
-            
-            if (isGroup && !isMine) {
-                final Label nameLabel = new Label(sender.getDisplayNameOrEmail());
-                nameLabel.getStyleClass().add("sender-name");
-                contentBox.getChildren().add(nameLabel);
-            }
-
-            // Créer un conteneur horizontal pour le texte et l'horodatage
-            final HBox contentTimeContainer = new HBox();
-            contentTimeContainer.getStyleClass().add("content-time-container");
-            
-            // Texte du message
-            final Label contentLabel = new Label(message.getContent());
-            contentLabel.setWrapText(true);
-            contentLabel.getStyleClass().add("message-text");
-            contentLabel.setMaxWidth(chatHistoryContainer.getWidth() * 0.6);  // Pour laisser de la place à l'horodatage
-
-            // Horodatage
-            final Label timeLabel = new Label(message.getTimestamp().format(TIME_FMT));
-            timeLabel.getStyleClass().add("message-time");
-            
-            // Assembler le conteneur de message
-            contentTimeContainer.getChildren().addAll(contentLabel, timeLabel);
-            contentBox.getChildren().add(contentTimeContainer);
-            messageContainer.getChildren().add(contentBox);
-            
-            if (isMine) messageContainer.getChildren().add(avatar);
-
-            Platform.runLater(() -> {
-                chatHistoryContainer.getChildren().add(messageContainer);
-                scrollToBottom();
-            });
-        } catch (final IOException e) {
-            setStatus("Erreur d'affichage du message : " + e.getMessage());
-        }
-    }
-
-    private void scrollToBottom() {
-        Platform.runLater(() -> {
-            chatScrollPane.setVvalue(1.0);
-        });
-    }
-
-    private void setStatus(final String status) {
-        Platform.runLater(() -> {
-            statusLabel.setText(status);
-            statusLabel.getStyleClass().add("status-label");
         });
     }
 
@@ -457,6 +459,16 @@ public class ChatController {
 
         if (email.isEmpty()) {
             setStatus("Veuillez saisir un email");
+            return;
+        }
+
+        // Vérifier si le contact existe déjà dans la liste locale
+        final boolean contactExists = contacts.stream()
+                .anyMatch(user -> user.getEmail().equalsIgnoreCase(email));
+
+        if (contactExists) {
+            setStatus("Ce contact existe déjà.");
+            newContactField.clear(); // Optionnel: vider le champ
             return;
         }
 
@@ -494,24 +506,6 @@ public class ChatController {
             }
         } catch (final IOException e) {
             setStatus("Erreur: " + e.getMessage());
-        }
-    }
-
-    @FXML
-    private void handleLogout() {
-        try {
-            chatService.disconnect();
-            chatHistoryContainer.getChildren().clear();
-
-            final FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/login.fxml"));
-            final Parent loginView = loader.load();
-
-            final Stage stage = (Stage) userEmailLabel.getScene().getWindow();
-            stage.setTitle("Chat Application");
-            stage.setScene(new Scene(loginView, 600, 400));
-            stage.centerOnScreen();
-        } catch (final IOException e) {
-            setStatus("Erreur lors de la déconnexion: " + e.getMessage());
         }
     }
 
@@ -559,7 +553,24 @@ public class ChatController {
         }
     }
 
-    private String truncate(final String text, final int maxLength) {
-        return text.length() > maxLength ? text.substring(0, maxLength) + "..." : text;
+    @FXML
+    private void handleLogout() {
+        try {
+            chatService.disconnect();
+            chatHistoryContainer.getChildren().clear();
+
+            // final Stage stage = (Stage) userEmailLabel.getScene().getWindow();
+            // stage.close();
+
+            final FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/login.fxml"));
+            final Parent loginView = loader.load();
+
+            final Stage stage = (Stage) userEmailLabel.getScene().getWindow();
+            stage.setTitle("Chat Application");
+            stage.setScene(new Scene(loginView, 600, 400));
+            stage.centerOnScreen();
+        } catch (final IOException e) {
+            setStatus("Erreur lors de la déconnexion: " + e.getMessage());
+        }
     }
 }

@@ -13,7 +13,6 @@ import org.example.shared.dao.GroupDAO;
 import org.example.shared.dao.MessageDAO;
 import org.example.shared.dao.UserDAO;
 import org.example.shared.dto.Credentials;
-import org.example.shared.model.Group;
 import org.example.shared.model.Message;
 import org.example.shared.model.User;
 
@@ -135,23 +134,12 @@ public class ChatService {
         return Message.newGroupMessage(sender.getId(), groupId, content);
     }
     
-    public boolean sendGroupMessage(final Message message) throws IOException {
-        if (socket == null || socket.isClosed() || out == null) {
-            throw new IOException("Non connecté au serveur");
-        }
-        final String jsonMessage = objectMapper.writeValueAsString(message);
-        out.println(jsonMessage);
-        return true;
-    }
-
     public boolean sendMessage(final Message message) throws IOException {
         if (socket == null || socket.isClosed() || out == null) {
             throw new IOException("Non connecté au serveur");
         }
-        // Envoi du message via le socket
         final String jsonMessage = objectMapper.writeValueAsString(message);
         out.println(jsonMessage);
-        
         return true;
     }
 
