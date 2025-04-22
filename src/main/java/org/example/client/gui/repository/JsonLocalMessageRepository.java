@@ -85,6 +85,14 @@ public class JsonLocalMessageRepository {
      */
     public void addLocalMessage(final String userEmail, final Message message) throws IOException {
         final List<Message> messages = loadLocalMessages(userEmail);
+
+        // Supprimer le message temporaire en doublon si présent
+        messages.removeIf(m -> 
+            m.getClientTempId() != null &&
+            m.getClientTempId().equals(message.getClientTempId()) &&
+            m.getId() == 0
+        );
+
         messages.add(message);
         saveLocalMessages(userEmail, messages);
     }
@@ -173,21 +181,14 @@ public class JsonLocalMessageRepository {
     public void updateLocalMessageIdAndStatus(final String userEmail, final String clientTempId, final long newPersistentId, final MessageStatus newStatus) throws IOException {
         if (clientTempId == null) return;
         final List<Message> messages = loadLocalMessages(userEmail);
-        boolean updated = false;
         for (final Message m : messages) {
             if (clientTempId.equals(m.getClientTempId())) {
                 m.setId(newPersistentId);
                 m.setStatus(newStatus);
-                // Optionnel : m.setClientTempId(null);
-                updated = true;
                 break;
             }
         }
-        if (updated) {
-            saveLocalMessages(userEmail, messages);
-        } else {
-            System.err.println("Message local non trouvé pour mise à jour via tempId: " + clientTempId);
-        }
+        saveLocalMessages(userEmail, messages);
     }
 
     /**

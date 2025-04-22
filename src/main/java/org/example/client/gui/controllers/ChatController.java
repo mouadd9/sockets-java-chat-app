@@ -3,7 +3,6 @@ package org.example.client.gui.controllers;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -449,15 +448,29 @@ public class ChatController {
     private void handleIncomingMessage(final Message message) {
         Platform.runLater(() -> {
             try {
-                if (message.getStatus() == MessageStatus.DELIVERED && message.getClientTempId() != null) {
-                    updateTempMessageStatus(message);
+                if (message.getClientTempId() != null && message.getId() > 0) {
+                    // Fusionner avec le message temporaire existant
+                    localRepo.updateLocalMessageIdAndStatus(
+                        userEmail, 
+                        message.getClientTempId(), 
+                        message.getId(), 
+                        message.getStatus()
+                    );
+                }
+                if (message.getStatus() == MessageStatus.DELIVERED && message.getOriginalMessageId() != null) {
+                    // Mise à jour du statut "Livré" pour l'expéditeur
+                    final Label statusLabel = persistentIdStatusMap.get(message.getOriginalMessageId());
+                    if (statusLabel != null) {
+                        updateStatusLabel(statusLabel, MessageStatus.DELIVERED);
+                        localRepo.updateLocalMessageStatus(userEmail, message.getOriginalMessageId(), MessageStatus.DELIVERED);
+                    }
                 } else if (message.getStatus() == MessageStatus.READ && message.getOriginalMessageId() != null) {
                     updatePersistentMessageStatus(message);
                 } else {
                     processNewMessage(message);
                 }
             } catch (final IOException e) {
-                setStatus("Error processing message: " + e.getMessage());
+                setStatus("Erreur de sync: " + e.getMessage());
             }
         });
     }

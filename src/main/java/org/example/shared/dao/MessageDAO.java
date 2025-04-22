@@ -168,4 +168,14 @@ public class MessageDAO {
             return affectedRows > 0;
         }
     }
+
+    public void updateMessageStatus(final long messageId, final MessageStatus status) throws SQLException {
+        final String sql = "UPDATE messages SET status = ? WHERE id = ?";
+        try (Connection conn = JDBCUtil.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, status.name());
+            stmt.setLong(2, messageId);
+            stmt.executeUpdate();
+        }
+    }
 }

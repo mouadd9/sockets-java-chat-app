@@ -226,13 +226,32 @@ public class MessageBroker {
                 try {
                     if (tryDeliver(message)) {
                         messages.poll();
-                        messageDAO.deleteMessage(message.getId());
+                        updateMessageStatusAndNotifySender(message);
                     } else {
                         break;
                     }
                 } catch (final Exception e) {
                     System.err.println("Erreur de livraison, réessai plus tard: " + e.getMessage());
                     break;
+                }
+            }
+        }
+
+        private void updateMessageStatusAndNotifySender(final Message message) throws SQLException {
+            message.setStatus(MessageStatus.DELIVERED);
+            messageDAO.updateMessageStatus(message.getId(), MessageStatus.DELIVERED);
+
+            final Message ackMessage = new Message();
+            ackMessage.setOriginalMessageId(message.getId());
+            ackMessage.setStatus(MessageStatus.DELIVERED);
+
+            final long senderId = message.getSenderUserId();
+            final MessageQueue senderQueue = userQueues.get(senderId);
+            if (senderQueue != null && senderQueue.listener != null) {
+                try {
+                    senderQueue.listener.onMessageReceived(ackMessage);
+                } catch (final IOException e) {
+                    System.err.println("Échec de l'ACK pour " + senderId);
                 }
             }
         }
