@@ -77,7 +77,6 @@ public class ChatController {
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
 
-    private final Map<Long, Label> messageStatusMap = new HashMap<>();
     private final Map<String, Label> tempIdStatusMap = new ConcurrentHashMap<>();
     private final Map<Long, Label> persistentIdStatusMap = new ConcurrentHashMap<>();
 
@@ -451,63 +450,74 @@ public class ChatController {
         Platform.runLater(() -> {
             try {
                 if (message.getStatus() == MessageStatus.DELIVERED && message.getClientTempId() != null) {
-                    final Label statusLabel = tempIdStatusMap.get(message.getClientTempId());
-                    if (statusLabel != null) {
-                        updateStatusLabel(statusLabel, MessageStatus.DELIVERED);
-                        tempIdStatusMap.remove(message.getClientTempId());
-                        if (message.getId() > 0) {
-                            persistentIdStatusMap.put(message.getId(), statusLabel);
-                            localRepo.updateLocalMessageIdAndStatus(userEmail, message.getClientTempId(), message.getId(), MessageStatus.DELIVERED);
-                        }
-                    }
-                    return;
-                }
-
-                if (message.getStatus() == MessageStatus.READ && message.getOriginalMessageId() != null) {
-                    final Label statusLabel = persistentIdStatusMap.get(message.getOriginalMessageId());
-                    if (statusLabel != null) {
-                        updateStatusLabel(statusLabel, MessageStatus.READ);
-                        localRepo.updateLocalMessageStatus(userEmail, message.getOriginalMessageId(), MessageStatus.READ);
-                    }
-                    return;
-                }
-
-                localRepo.addLocalMessage(userEmail, message);
-
-                if (message.getGroupId() != null) {
-                    final boolean groupExists = groups.stream()
-                            .anyMatch(g -> g.getId() == message.getGroupId());
-                    if (!groupExists) {
-                        loadGroups();
-                    } else {
-                        groupListView.refresh();
-                    }
-
-                    if (selectedGroup != null && selectedGroup.getId() == message.getGroupId()) {
-                        addMessageToChat(message);
-                    }
-                    setStatus("Nouveau message de groupe reçu");
+                    updateTempMessageStatus(message);
+                } else if (message.getStatus() == MessageStatus.READ && message.getOriginalMessageId() != null) {
+                    updatePersistentMessageStatus(message);
                 } else {
-                    final User sender = userService.getUserById(message.getSenderUserId());
-
-                    if (sender != null && !contacts.contains(sender)) {
-                        contacts.add(sender);
-                    }
-                    contactListView.refresh();
-
-                    if (selectedContactUser != null &&
-                            sender.getId() == selectedContactUser.getId()) {
-                        addMessageToChat(message);
-                    }
-
-                    setStatus("Nouveau message reçu");
+                    processNewMessage(message);
                 }
-
-                scrollToBottom();
             } catch (final IOException e) {
-                setStatus("Erreur lors du traitement du message reçu : " + e.getMessage());
+                setStatus("Error processing message: " + e.getMessage());
             }
         });
+    }
+    
+    private void updateTempMessageStatus(final Message message) throws IOException {
+        final Label statusLabel = tempIdStatusMap.get(message.getClientTempId());
+        if (statusLabel != null) {
+            updateStatusLabel(statusLabel, MessageStatus.DELIVERED);
+            tempIdStatusMap.remove(message.getClientTempId());
+            if (message.getId() > 0) {
+                persistentIdStatusMap.put(message.getId(), statusLabel);
+                localRepo.updateLocalMessageIdAndStatus(userEmail, message.getClientTempId(), message.getId(), MessageStatus.DELIVERED);
+            }
+        }
+    }
+    
+    private void updatePersistentMessageStatus(final Message message) throws IOException {
+        final Label statusLabel = persistentIdStatusMap.get(message.getOriginalMessageId());
+        if (statusLabel != null) {
+            updateStatusLabel(statusLabel, MessageStatus.READ);
+            localRepo.updateLocalMessageStatus(userEmail, message.getOriginalMessageId(), MessageStatus.READ);
+        }
+    }
+    
+    private void processNewMessage(Message message) throws IOException {
+        localRepo.addLocalMessage(userEmail, message);
+        if (message.getGroupId() != null) {
+            handleGroupMessage(message);
+        } else {
+            handleDirectMessage(message);
+        }
+        setStatus("New message received");
+        scrollToBottom();
+    }
+    private void handleGroupMessage(Message message) throws IOException {
+        boolean groupExists = groups.stream()
+                .anyMatch(g -> g.getId() == message.getGroupId());
+        if (!groupExists) {
+            loadGroups();
+        } else {
+            groupListView.refresh();
+        }
+    
+        if (selectedGroup != null && selectedGroup.getId() == message.getGroupId()) {
+            addMessageToChat(message);
+        }
+        setStatus("New group message received");
+    }
+    
+    private void handleDirectMessage(Message message) throws IOException {
+        User sender = userService.getUserById(message.getSenderUserId());
+        if (sender != null && !contacts.contains(sender)) {
+            contacts.add(sender);
+        }
+        contactListView.refresh();
+    
+        if (selectedContactUser != null && 
+            sender.getId() == selectedContactUser.getId()) {
+            addMessageToChat(message);
+        }
     }
 
     private void updateStatusLabel(final Label statusLabel, final MessageStatus status) {

@@ -51,70 +51,98 @@ public class MessageBroker {
     public void sendMessage(final Message message) {
         try {
             final String clientTempId = message.getClientTempId();
-            messageDAO.createMessage(message); // Affecte l'ID persistant au message original
+            messageDAO.createMessage(message); // Assigns persistent ID
 
             if (message.isGroupMessage()) {
-                final List<Long> groupMemberIds = groupDAO.getMembersForGroup(message.getGroupId());
-                for (final Long memberId : groupMemberIds) {
-                    if (memberId != message.getSenderUserId()) {
-                        // ...logique d'envoi au groupe...
-                        final Message memberMessage = new Message();
-                        memberMessage.setSenderUserId(message.getSenderUserId());
-                        memberMessage.setGroupId(message.getGroupId());
-                        memberMessage.setSenderUserId(message.getSenderUserId());
-                        memberMessage.setGroupId(message.getGroupId());
-                        memberMessage.setContent(message.getContent());
-                        memberMessage.setTimestamp(message.getTimestamp());
-                        memberMessage.setOriginalMessageId(message.getId()); // Référence vers le message original
-
-                        final MessageQueue queue = getOrCreateQueue(memberId);
-                        if (queue.tryDeliver(memberMessage)) {
-                            memberMessage.setStatus(MessageStatus.DELIVERED);
-                        } else {
-                            memberMessage.setStatus(MessageStatus.QUEUED);
-                            persistMessage(memberMessage);
-                        }
-                    }
-                }
-                // Retourner une copie du message original à l'expéditeur
-                final MessageQueue senderQueue = getOrCreateQueue(message.getSenderUserId());
-                final Message senderMessage = new Message();
-                senderMessage.setId(message.getId()); // transmet l'ID persistant
-                senderMessage.setSenderUserId(message.getSenderUserId());
-                senderMessage.setGroupId(message.getGroupId());
-                senderMessage.setContent(message.getContent());
-                senderMessage.setTimestamp(message.getTimestamp());
-                senderMessage.setStatus(MessageStatus.SENT);
-                senderMessage.setClientTempId(clientTempId); // Lien client
-                senderQueue.addMessageToQueue(senderMessage);
-                senderQueue.deliverPendingMessages();
-
+                handleGroupMessage(message, clientTempId);
             } else {
-                final MessageQueue receiverQueue = getOrCreateQueue(message.getReceiverUserId());
-                if (receiverQueue.tryDeliver(message)) {
-                    message.setStatus(MessageStatus.DELIVERED);
-                } else {
-                    message.setStatus(MessageStatus.QUEUED);
-                    persistMessage(message);
-                }
-                // Envoyer une copie au sender pour confirmer l'envoi
-                final MessageQueue senderQueue = getOrCreateQueue(message.getSenderUserId());
-                final Message senderCopy = new Message();
-                senderCopy.setId(message.getId()); // ID persistant
-                senderCopy.setSenderUserId(message.getSenderUserId());
-                senderCopy.setReceiverUserId(message.getReceiverUserId());
-                senderCopy.setContent(message.getContent());
-                senderCopy.setTimestamp(message.getTimestamp());
-                senderCopy.setStatus(message.getStatus());
-                senderCopy.setClientTempId(clientTempId); // Lien client
-
-                if (!senderQueue.tryDeliver(senderCopy)) {
-                    System.err.println("Impossible de renvoyer la confirmation au sender " + message.getSenderUserId());
-                }
+                handleDirectMessage(message, clientTempId);
             }
         } catch (final SQLException e) {
-            System.err.println("Erreur d'envoi: " + e.getMessage());
+            System.err.println("Error sending message: " + e.getMessage());
         }
+    }
+    
+    private void handleGroupMessage(final Message originalMessage, final String clientTempId) throws SQLException {
+        final List<Long> groupMemberIds = groupDAO.getMembersForGroup(originalMessage.getGroupId());
+        for (final Long memberId : groupMemberIds) {
+            if (memberId != originalMessage.getSenderUserId()) {
+                sendMemberMessage(originalMessage, memberId);
+            }
+        }
+        sendSenderConfirmation(originalMessage, clientTempId);
+    }
+
+    private void sendMemberMessage(final Message originalMessage, final Long memberId) throws SQLException {
+        final Message memberMessage = createMemberMessage(originalMessage);
+        final MessageQueue queue = getOrCreateQueue(memberId);
+        if (queue.tryDeliver(memberMessage)) {
+            memberMessage.setStatus(MessageStatus.DELIVERED);
+        } else {
+            memberMessage.setStatus(MessageStatus.QUEUED);
+            persistMessage(memberMessage);
+        }
+    }
+    
+    private Message createMemberMessage(final Message originalMessage) {
+        final Message memberMessage = new Message();
+        memberMessage.setSenderUserId(originalMessage.getSenderUserId());
+        memberMessage.setGroupId(originalMessage.getGroupId());
+        memberMessage.setContent(originalMessage.getContent());
+        memberMessage.setTimestamp(originalMessage.getTimestamp());
+        memberMessage.setOriginalMessageId(originalMessage.getId());
+        return memberMessage;
+    }
+    
+    private void sendSenderConfirmation(final Message originalMessage, final String clientTempId) {
+        final MessageQueue senderQueue = getOrCreateQueue(originalMessage.getSenderUserId());
+        final Message senderMessage = createSenderMessage(originalMessage, clientTempId);
+        // Màj du status à DELIVERED pour que le client mette à jour la persistentIdStatusMap
+        senderMessage.setStatus(MessageStatus.DELIVERED);
+        senderQueue.addMessageToQueue(senderMessage);
+        senderQueue.deliverPendingMessages();
+    }
+    
+    private Message createSenderMessage(final Message originalMessage, final String clientTempId) {
+        final Message senderMessage = new Message();
+        senderMessage.setId(originalMessage.getId());
+        senderMessage.setSenderUserId(originalMessage.getSenderUserId());
+        senderMessage.setGroupId(originalMessage.getGroupId());
+        senderMessage.setContent(originalMessage.getContent());
+        senderMessage.setTimestamp(originalMessage.getTimestamp());
+        senderMessage.setClientTempId(clientTempId);
+        return senderMessage;
+    }
+    
+    private void handleDirectMessage(final Message message, final String clientTempId) throws SQLException {
+        final MessageQueue receiverQueue = getOrCreateQueue(message.getReceiverUserId());
+        if (receiverQueue.tryDeliver(message)) {
+            message.setStatus(MessageStatus.DELIVERED);
+        } else {
+            message.setStatus(MessageStatus.QUEUED);
+            persistMessage(message);
+        }
+        sendSenderCopy(message, clientTempId);
+    }
+    
+    private void sendSenderCopy(final Message originalMessage, final String clientTempId) {
+        final MessageQueue senderQueue = getOrCreateQueue(originalMessage.getSenderUserId());
+        final Message senderCopy = createSenderCopy(originalMessage, clientTempId);
+        if (!senderQueue.tryDeliver(senderCopy)) {
+            System.err.println("Failed to send confirmation to sender " + originalMessage.getSenderUserId());
+        }
+    }
+    
+    private Message createSenderCopy(final Message originalMessage, final String clientTempId) {
+        final Message senderCopy = new Message();
+        senderCopy.setId(originalMessage.getId());
+        senderCopy.setSenderUserId(originalMessage.getSenderUserId());
+        senderCopy.setReceiverUserId(originalMessage.getReceiverUserId());
+        senderCopy.setContent(originalMessage.getContent());
+        senderCopy.setTimestamp(originalMessage.getTimestamp());
+        senderCopy.setStatus(originalMessage.getStatus());
+        senderCopy.setClientTempId(clientTempId);
+        return senderCopy;
     }
 
     public void acknowledgeMessageRead(final Message message) throws IOException {
