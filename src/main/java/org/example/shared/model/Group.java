@@ -1,9 +1,10 @@
 package org.example.shared.model;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
-public class Group {
+public class Group implements Serializable {
 
     private long id;
     private String name;

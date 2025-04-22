@@ -53,3 +53,5 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (receiver_user_id) REFERENCES users(id),
     FOREIGN KEY (group_id) REFERENCES `groups`(id)
 ) ENGINE=InnoDB;
+
+ALTER TABLE messages ADD COLUMN original_message_id BIGINT;

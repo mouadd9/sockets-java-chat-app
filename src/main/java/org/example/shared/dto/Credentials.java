@@ -1,9 +1,11 @@
 package org.example.shared.dto;
 
+import java.io.Serializable;
+
 /**
  * Classe DTO pour les informations d'authentification.
  */
-public class Credentials {
+public class Credentials implements Serializable {
     private String email;
     private String password;
     

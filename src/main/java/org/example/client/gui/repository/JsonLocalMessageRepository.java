@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.example.shared.model.Message;
+import org.example.shared.model.enums.MessageStatus;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -148,5 +149,65 @@ public class JsonLocalMessageRepository {
     public Optional<Message> getLastGroupMessage(final String userEmail, final long groupId) throws IOException {
         return loadGroupMessages(userEmail, groupId).stream()
                 .max(Comparator.comparing(Message::getTimestamp));
+    }
+
+    
+
+    /**
+     * Met à jour l'ID d'un message local en fonction de son ancien ID.
+     */
+    public void updateLocalMessageId(final String userEmail, final Long originalMessageId, final long newMessageId) throws IOException {
+        final List<Message> messages = loadLocalMessages(userEmail);
+        for (final Message m : messages) {
+            if (originalMessageId != null && originalMessageId.equals(m.getId())) {
+                m.setId(newMessageId);
+                break;
+            }
+        }
+        saveLocalMessages(userEmail, messages);
+    }
+
+    /**
+     * Met à jour l'ID et le statut d'un message local via son clientTempId.
+     */
+    public void updateLocalMessageIdAndStatus(final String userEmail, final String clientTempId, final long newPersistentId, final MessageStatus newStatus) throws IOException {
+        if (clientTempId == null) return;
+        final List<Message> messages = loadLocalMessages(userEmail);
+        boolean updated = false;
+        for (final Message m : messages) {
+            if (clientTempId.equals(m.getClientTempId())) {
+                m.setId(newPersistentId);
+                m.setStatus(newStatus);
+                // Optionnel : m.setClientTempId(null);
+                updated = true;
+                break;
+            }
+        }
+        if (updated) {
+            saveLocalMessages(userEmail, messages);
+        } else {
+            System.err.println("Message local non trouvé pour mise à jour via tempId: " + clientTempId);
+        }
+    }
+
+    /**
+     * Met à jour le statut d'un message local via son ID persistant.
+     */
+    public void updateLocalMessageStatus(final String userEmail, final long persistentMessageId, final MessageStatus newStatus) throws IOException {
+        if (persistentMessageId <= 0) return;
+        final List<Message> messages = loadLocalMessages(userEmail);
+        boolean updated = false;
+        for (final Message m : messages) {
+            if (m.getId() == persistentMessageId) {
+                m.setStatus(newStatus);
+                updated = true;
+                break;
+            }
+        }
+        if (updated) {
+            saveLocalMessages(userEmail, messages);
+        } else {
+            System.err.println("Message local non trouvé pour mise à jour de statut via persistentId: " + persistentMessageId);
+        }
     }
 }

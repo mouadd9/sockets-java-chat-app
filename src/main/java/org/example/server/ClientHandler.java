@@ -11,6 +11,7 @@ import org.example.shared.dao.UserDAO;
 import org.example.shared.dto.Credentials;
 import org.example.shared.model.Message;
 import org.example.shared.model.User;
+import org.example.shared.model.enums.MessageStatus;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -79,7 +80,9 @@ public class ClientHandler implements Runnable {
         while (isConnected && (messageJson = input.readLine()) != null) {
             try {
                 final Message message = mapper.readValue(messageJson, Message.class);
-                if ("LOGOUT".equalsIgnoreCase(message.getContent())) {
+                if (message.getStatus() == MessageStatus.READ) {
+                    broker.acknowledgeMessageRead(message);
+                } else if ("LOGOUT".equalsIgnoreCase(message.getContent())) {
                     terminateSession();
                 } else {
                     broker.sendMessage(message);

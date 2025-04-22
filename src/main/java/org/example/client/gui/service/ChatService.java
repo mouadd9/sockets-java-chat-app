@@ -15,6 +15,7 @@ import org.example.shared.dao.UserDAO;
 import org.example.shared.dto.Credentials;
 import org.example.shared.model.Message;
 import org.example.shared.model.User;
+import org.example.shared.model.enums.MessageStatus;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -80,7 +81,7 @@ public class ChatService {
     }
 
     public void disconnect() throws IOException {
-        // Envoi d'un message de déconnexion (exemple simplifié)
+
         final Message logoutMsg = new Message();
         logoutMsg.setSenderUserId(getCurrentUserId());
         out.println(objectMapper.writeValueAsString(logoutMsg));
@@ -141,6 +142,23 @@ public class ChatService {
         final String jsonMessage = objectMapper.writeValueAsString(message);
         out.println(jsonMessage);
         return true;
+    }
+
+    public void acknowledgeMessageRead(final Message message) throws IOException {
+        // Si l'ACK ne contient pas déjà originalMessageId, le renseigner avec l'id du message lu
+        if (message.getOriginalMessageId() == null) {
+            message.setOriginalMessageId(message.getId());
+        }
+        // Pour un message direct, inverser expéditeur et destinataire
+        if (message.getGroupId() == null) {
+            final long originalSenderId = message.getSenderUserId();
+            final long currentUserId = getCurrentUserId();
+            message.setSenderUserId(currentUserId);
+            message.setReceiverUserId(originalSenderId);
+        }
+        message.setStatus(MessageStatus.READ);
+        final String jsonMessage = objectMapper.writeValueAsString(message);
+        out.println(jsonMessage);
     }
 
     // Récupère la conversation entre deux utilisateurs

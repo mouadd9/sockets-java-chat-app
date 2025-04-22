@@ -3,8 +3,12 @@ package org.example.client.gui.controllers;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.example.client.gui.repository.JsonLocalMessageRepository;
 import org.example.client.gui.service.ChatService;
@@ -14,6 +18,7 @@ import org.example.client.gui.service.UserService;
 import org.example.shared.model.Group;
 import org.example.shared.model.Message;
 import org.example.shared.model.User;
+import org.example.shared.model.enums.MessageStatus;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -71,6 +76,10 @@ public class ChatController {
     private final Object loadLock = new Object();
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
+
+    private final Map<Long, Label> messageStatusMap = new HashMap<>();
+    private final Map<String, Label> tempIdStatusMap = new ConcurrentHashMap<>();
+    private final Map<Long, Label> persistentIdStatusMap = new ConcurrentHashMap<>();
 
     @FXML
     public void initialize() {
@@ -265,7 +274,7 @@ public class ChatController {
                 contentBox.getChildren().add(nameLabel);
             }
 
-            // Créer un conteneur horizontal pour le texte et l'horodatage
+            // Conteneur pour le texte et l'horodatage + status
             final HBox contentTimeContainer = new HBox();
             contentTimeContainer.getStyleClass().add("content-time-container");
 
@@ -273,14 +282,32 @@ public class ChatController {
             final Label contentLabel = new Label(message.getContent());
             contentLabel.setWrapText(true);
             contentLabel.getStyleClass().add("message-text");
-            contentLabel.setMaxWidth(chatHistoryContainer.getWidth() * 0.6); // Pour laisser de la place à l'horodatage
+            contentLabel.setMaxWidth(chatHistoryContainer.getWidth() * 0.6);
 
             // Horodatage
             final Label timeLabel = new Label(message.getTimestamp().format(TIME_FMT));
             timeLabel.getStyleClass().add("message-time");
 
-            // Assembler le conteneur de message
             contentTimeContainer.getChildren().addAll(contentLabel, timeLabel);
+
+            // Ajout du status pour les messages envoyés (simulateur de double tick)
+            if (isMine) {
+                final Label statusLabel = new Label("Envoyé"); // Statut initial affiché
+                statusLabel.getStyleClass().add("message-status");
+                contentTimeContainer.getChildren().add(statusLabel);
+
+                updateStatusLabel(statusLabel, message.getStatus());
+
+                if (message.getClientTempId() != null) {
+                    tempIdStatusMap.put(message.getClientTempId(), statusLabel);
+                    if (message.getId() > 0) {
+                        persistentIdStatusMap.put(message.getId(), statusLabel);
+                    }
+                } else if (message.getId() > 0) {
+                    persistentIdStatusMap.put(message.getId(), statusLabel);
+                }
+            }
+
             contentBox.getChildren().add(contentTimeContainer);
             messageContainer.getChildren().add(contentBox);
 
@@ -291,6 +318,17 @@ public class ChatController {
                 chatHistoryContainer.getChildren().add(messageContainer);
                 scrollToBottom();
             });
+
+            // Si le message provient d’un autre utilisateur, envoyer l’ACK de lecture de façon asynchrone
+            if (!isMine) {
+                new Thread(() -> {
+                    try {
+                        chatService.acknowledgeMessageRead(message);
+                    } catch (final IOException e) {
+                        setStatus("Erreur ACK : " + e.getMessage());
+                    }
+                }).start();
+            }
         } catch (final IOException e) {
             setStatus("Erreur d'affichage du message : " + e.getMessage());
         }
@@ -379,40 +417,64 @@ public class ChatController {
 
         try {
             Message message;
+            final User sender = userService.getUserByEmail(userEmail);
+            final String tempClientId = UUID.randomUUID().toString();
+
             if (selectedContactUser != null) {
-                final User sender = userService.getUserByEmail(userEmail);
                 message = Message.newDirectMessage(sender.getId(), selectedContactUser.getId(), content);
-                chatService.sendMessage(message);
             } else if (selectedGroup != null) {
-                final User sender = userService.getUserByEmail(userEmail);
                 message = Message.newGroupMessage(sender.getId(), selectedGroup.getId(), content);
-                chatService.sendMessage(message);
             } else {
                 setStatus("Veuillez sélectionner un groupe ou un contact.");
                 return;
             }
-            messageField.clear();
+            message.setClientTempId(tempClientId);
+            message.setStatus(MessageStatus.SENT);
+
             addMessageToChat(message);
             localRepo.addLocalMessage(userEmail, message);
+            chatService.sendMessage(message);
+
+            messageField.clear();
             if (message.getGroupId() != null) {
                 groupListView.refresh();
             } else {
                 contactListView.refresh();
             }
-            setStatus("Message envoyé");
         } catch (final IOException e) {
             setStatus("Erreur lors de l'envoi du message : " + e.getMessage());
         }
     }
 
+    @FXML
     private void handleIncomingMessage(final Message message) {
         Platform.runLater(() -> {
             try {
+                if (message.getStatus() == MessageStatus.DELIVERED && message.getClientTempId() != null) {
+                    final Label statusLabel = tempIdStatusMap.get(message.getClientTempId());
+                    if (statusLabel != null) {
+                        updateStatusLabel(statusLabel, MessageStatus.DELIVERED);
+                        tempIdStatusMap.remove(message.getClientTempId());
+                        if (message.getId() > 0) {
+                            persistentIdStatusMap.put(message.getId(), statusLabel);
+                            localRepo.updateLocalMessageIdAndStatus(userEmail, message.getClientTempId(), message.getId(), MessageStatus.DELIVERED);
+                        }
+                    }
+                    return;
+                }
+
+                if (message.getStatus() == MessageStatus.READ && message.getOriginalMessageId() != null) {
+                    final Label statusLabel = persistentIdStatusMap.get(message.getOriginalMessageId());
+                    if (statusLabel != null) {
+                        updateStatusLabel(statusLabel, MessageStatus.READ);
+                        localRepo.updateLocalMessageStatus(userEmail, message.getOriginalMessageId(), MessageStatus.READ);
+                    }
+                    return;
+                }
+
                 localRepo.addLocalMessage(userEmail, message);
 
-                // Message de groupe
                 if (message.getGroupId() != null) {
-                    // Vérifier si le groupe est déjà dans la liste, sinon recharger les groupes
                     final boolean groupExists = groups.stream()
                             .anyMatch(g -> g.getId() == message.getGroupId());
                     if (!groupExists) {
@@ -421,23 +483,18 @@ public class ChatController {
                         groupListView.refresh();
                     }
 
-                    // Afficher le message si le groupe est actuellement sélectionné
                     if (selectedGroup != null && selectedGroup.getId() == message.getGroupId()) {
                         addMessageToChat(message);
                     }
                     setStatus("Nouveau message de groupe reçu");
-                }
-                // Message direct
-                else {
+                } else {
                     final User sender = userService.getUserById(message.getSenderUserId());
 
-                    // Ajouter le contact s'il n'existe pas
                     if (sender != null && !contacts.contains(sender)) {
                         contacts.add(sender);
                     }
                     contactListView.refresh();
 
-                    // Afficher le message si la conversation est actuellement sélectionnée
                     if (selectedContactUser != null &&
                             sender.getId() == selectedContactUser.getId()) {
                         addMessageToChat(message);
@@ -448,9 +505,28 @@ public class ChatController {
 
                 scrollToBottom();
             } catch (final IOException e) {
-                setStatus("Erreur lors du traitement du message : " + e.getMessage());
+                setStatus("Erreur lors du traitement du message reçu : " + e.getMessage());
             }
         });
+    }
+
+    private void updateStatusLabel(final Label statusLabel, final MessageStatus status) {
+        switch (status) {
+            case SENT:
+                statusLabel.setText("Envoyé");
+                statusLabel.getStyleClass().add("message-sent");
+                break;
+            case DELIVERED:
+                statusLabel.setText("Livré");
+                statusLabel.getStyleClass().add("message-delivered");
+                break;
+            case READ:
+                statusLabel.setText("Vu");
+                statusLabel.getStyleClass().add("message-read");
+                break;
+            default:
+                break;
+        }
     }
 
     @FXML
@@ -462,13 +538,12 @@ public class ChatController {
             return;
         }
 
-        // Vérifier si le contact existe déjà dans la liste locale
         final boolean contactExists = contacts.stream()
                 .anyMatch(user -> user.getEmail().equalsIgnoreCase(email));
 
         if (contactExists) {
             setStatus("Ce contact existe déjà.");
-            newContactField.clear(); // Optionnel: vider le champ
+            newContactField.clear();
             return;
         }
 
@@ -558,9 +633,6 @@ public class ChatController {
         try {
             chatService.disconnect();
             chatHistoryContainer.getChildren().clear();
-
-            // final Stage stage = (Stage) userEmailLabel.getScene().getWindow();
-            // stage.close();
 
             final FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/login.fxml"));
             final Parent loginView = loader.load();

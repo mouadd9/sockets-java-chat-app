@@ -15,8 +15,8 @@ import org.example.shared.model.enums.MessageStatus;
 
 public class MessageDAO {
 
-    public void createMessage(final Message message) {
-        final String sql = "INSERT INTO messages (sender_user_id, receiver_user_id, group_id, content, timestamp, status) VALUES (?,?,?,?,?,?)";
+    public void createMessage(final Message message) throws SQLException {
+        final String sql = "INSERT INTO messages (sender_user_id, receiver_user_id, group_id, content, timestamp, status, original_message_id) VALUES (?,?,?,?,?,?,?)";
         try (Connection conn = JDBCUtil.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
@@ -34,18 +34,21 @@ public class MessageDAO {
             stmt.setString(4, message.getContent());
             stmt.setTimestamp(5, Timestamp.valueOf(message.getTimestamp()));
             stmt.setString(6, message.getStatus().name());
+            if (message.getOriginalMessageId() != null) {
+                stmt.setLong(7, message.getOriginalMessageId());
+            } else {
+                stmt.setNull(7, Types.BIGINT);
+            }
             stmt.executeUpdate();
             try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
                 if (generatedKeys.next()) {
                     message.setId(generatedKeys.getLong(1));
                 }
             }
-        } catch (final SQLException e) {
-            e.printStackTrace();
         }
     }
 
-    public Message findMessageById(final long id) {
+    public Message findMessageById(final long id) throws SQLException {
         final String sql = "SELECT * FROM messages WHERE id = ?";
         try (Connection conn = JDBCUtil.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -67,11 +70,11 @@ public class MessageDAO {
                     message.setContent(rs.getString("content"));
                     message.setTimestamp(rs.getTimestamp("timestamp").toLocalDateTime());
                     message.setStatus(MessageStatus.valueOf(rs.getString("status")));
+                    final long originalId = rs.getLong("original_message_id");
+                    message.setOriginalMessageId(rs.wasNull() ? null : originalId);
                     return message;
                 }
             }
-        } catch (final SQLException e) {
-            e.printStackTrace();
         }
         return null;
     }

@@ -1,9 +1,10 @@
 package org.example.shared.model;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
-public class Contact {
+public class Contact implements Serializable {
 
     private long userId;        // FK vers User.id (celui qui ajoute)
     private long contactUserId; // FK vers User.id (celui qui est ajouté)

@@ -1,9 +1,10 @@
 package org.example.shared.model;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
-public class GroupMembership {
+public class GroupMembership implements Serializable {
 
     private long userId;   // FK vers User.id
     private long groupId;  // FK vers Group.id
