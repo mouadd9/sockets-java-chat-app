@@ -495,7 +495,7 @@ public class ChatController {
         }
     }
     
-    private void processNewMessage(Message message) throws IOException {
+    private void processNewMessage(final Message message) throws IOException {
         localRepo.addLocalMessage(userEmail, message);
         if (message.getGroupId() != null) {
             handleGroupMessage(message);
@@ -505,8 +505,8 @@ public class ChatController {
         setStatus("New message received");
         scrollToBottom();
     }
-    private void handleGroupMessage(Message message) throws IOException {
-        boolean groupExists = groups.stream()
+    private void handleGroupMessage(final Message message) throws IOException {
+        final boolean groupExists = groups.stream()
                 .anyMatch(g -> g.getId() == message.getGroupId());
         if (!groupExists) {
             loadGroups();
@@ -520,8 +520,8 @@ public class ChatController {
         setStatus("New group message received");
     }
     
-    private void handleDirectMessage(Message message) throws IOException {
-        User sender = userService.getUserById(message.getSenderUserId());
+    private void handleDirectMessage(final Message message) throws IOException {
+        final User sender = userService.getUserById(message.getSenderUserId());
         if (sender != null && !contacts.contains(sender)) {
             contacts.add(sender);
         }

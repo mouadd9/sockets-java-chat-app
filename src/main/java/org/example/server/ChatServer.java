@@ -13,6 +13,7 @@ public class ChatServer {
 
         while (true) {
             final Socket client = server.accept();
+            System.out.println("Client Connexion");
             final ClientHandler clientHandler = new ClientHandler(client);
             new Thread(clientHandler).start();
         }
