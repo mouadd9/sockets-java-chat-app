@@ -15,3 +15,4 @@ public class Launcher {
         ChatClientApplication.main(args);
     }
 }
+

@@ -7,10 +7,13 @@ import java.util.List;
 import java.util.Optional;
 
 import org.example.client.gui.repository.JsonLocalMessageRepository;
+import org.example.client.gui.service.CallManager;
 import org.example.client.gui.service.ChatService;
 import org.example.client.gui.service.ContactService;
 import org.example.client.gui.service.GroupService;
 import org.example.client.gui.service.UserService;
+import org.example.shared.model.CallSession;
+import org.example.shared.model.CallSignal;
 import org.example.shared.model.Group;
 import org.example.shared.model.Message;
 import org.example.shared.model.User;
@@ -25,11 +28,13 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
@@ -37,7 +42,9 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 
 public class ChatController {
     @FXML private Label userEmailLabel;
@@ -47,6 +54,15 @@ public class ChatController {
     @FXML private VBox chatHistoryContainer;
     @FXML private ScrollPane chatScrollPane;
     @FXML private Label statusLabel;
+    
+    // Éléments d'interface pour les appels
+    @FXML private Button callButton;
+    @FXML private VBox callControlsBox;
+    @FXML private Label callStatusLabel;
+    @FXML private Button acceptCallButton;
+    @FXML private Button rejectCallButton;
+    @FXML private Button endCallButton;
+    @FXML private ToggleButton muteButton;
 
     private ChatService chatService;
     private String userEmail;
@@ -60,6 +76,7 @@ public class ChatController {
     private final ContactService contactService = new ContactService();
     private final GroupService groupService = new GroupService();
     private final UserService userService = new UserService();
+    private final CallManager callManager = CallManager.getInstance();
 
     private final Object loadLock = new Object();
 
@@ -121,6 +138,9 @@ public class ChatController {
                 selectedGroup = null;
                 loadContactConversation(selectedContactUser);
                 setStatus("Conversation chargée avec " + selectedContactUser.getDisplayNameOrEmail());
+                
+                // Activer le bouton d'appel uniquement pour les conversations de contact (pas de groupe)
+                callButton.setDisable(false);
             }
         });
         
@@ -131,10 +151,16 @@ public class ChatController {
                 selectedContactUser = null;
                 loadGroupConversation(sel);
                 setStatus("Conversation de groupe chargée : " + sel.getName());
+                
+                // Désactiver le bouton d'appel pour les conversations de groupe
+                callButton.setDisable(true);
             }
         });
 
         messageField.setOnAction(this::handleSendMessage);
+        
+        // Initialiser l'interface d'appel
+        initCallUI();
     }
 
     public void initData(final ChatService service, final String userEmail) {
@@ -143,8 +169,384 @@ public class ChatController {
         userEmailLabel.setText(userEmail);
 
         chatService.setMessageConsumer(this::handleIncomingMessage);
+        chatService.setCallSignalConsumer(this::handleCallSignal);
         loadContacts();
         loadGroups();
+    }
+
+    /**
+     * Initialise l'interface utilisateur pour les appels.
+     */
+    private void initCallUI() {
+        // Lier le label de statut d'appel au CallManager
+        callStatusLabel.textProperty().bind(callManager.callStatusProperty());
+        
+        // Initialiser les boutons d'appel comme invisibles
+        callControlsBox.setVisible(false);
+        callControlsBox.setManaged(false);
+        acceptCallButton.setVisible(false);
+        acceptCallButton.setManaged(false);
+        rejectCallButton.setVisible(false);
+        rejectCallButton.setManaged(false);
+        endCallButton.setVisible(false);
+        endCallButton.setManaged(false);
+        muteButton.setVisible(false);
+        muteButton.setManaged(false);
+    }
+    
+    /**
+     * Gère une demande d'appel (bouton Appeler).
+     */
+    @FXML
+    private void handleCallRequest(ActionEvent event) {
+        if (selectedContactUser == null) {
+            setStatus("Veuillez sélectionner un contact pour appeler");
+            return;
+        }
+        
+        try {
+            // Créer une nouvelle session d'appel
+            final User currentUser = userService.getUserByEmail(userEmail);
+            final CallSession callSession = new CallSession(currentUser.getId(), selectedContactUser.getId());
+            
+            // Initialiser l'appel dans le CallManager
+            if (!callManager.initiateCall(selectedContactUser, callSession)) {
+                setStatus("Impossible d'initialiser l'appel. Un appel est peut-être déjà en cours.");
+                return;
+            }
+            
+            // Envoyer le signal d'appel
+            final CallSignal callRequest = chatService.createCallRequest(callSession, selectedContactUser.getEmail());
+            chatService.sendCallSignal(callRequest);
+            
+            // Afficher l'interface d'appel
+            showCallUI(false);
+            
+            setStatus("Appel en cours vers " + selectedContactUser.getDisplayNameOrEmail());
+        } catch (final IOException e) {
+            setStatus("Erreur lors de l'appel : " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Gère l'acceptation d'un appel.
+     */
+    @FXML
+    private void handleAcceptCall(ActionEvent event) {
+        try {
+            final CallSession currentSession = callManager.getCurrentSession();
+            if (currentSession == null) {
+                setStatus("Aucun appel à accepter");
+                return;
+            }
+            
+            // Initialiser le CallManager qui va créer le socket UDP et obtenir un port
+            // Le port local sera maintenant géré par le CallManager
+            
+            // Récupérer le port local attribué par le CallManager
+            final int localPort = callManager.getLocalPort();
+            System.out.println("Acceptation d'appel avec port local: " + localPort);
+            
+            // Envoyer le signal d'acceptation avec l'adresse IP et le port local
+            final CallSignal acceptSignal = chatService.createCallAccept(
+                    currentSession.getSessionId(), 
+                    currentSession.getCallerUserId(), 
+                    localPort);
+            chatService.sendCallSignal(acceptSignal);
+            
+            // Mettre à jour l'interface d'appel
+            updateCallUIForActiveCall();
+            
+            setStatus("Appel accepté");
+        } catch (final IOException e) {
+            setStatus("Erreur lors de l'acceptation de l'appel : " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Gère le rejet d'un appel.
+     */
+    @FXML
+    private void handleRejectCall(ActionEvent event) {
+        try {
+            final CallSession currentSession = callManager.getCurrentSession();
+            if (currentSession == null) {
+                setStatus("Aucun appel à rejeter");
+                return;
+            }
+            
+            // Envoyer le signal de rejet
+            final CallSignal rejectSignal = chatService.createCallReject(
+                    currentSession.getSessionId(), 
+                    currentSession.getCallerUserId());
+            chatService.sendCallSignal(rejectSignal);
+            
+            // Terminer l'appel localement
+            callManager.endCall();
+            
+            // Masquer l'interface d'appel
+            hideCallUI();
+            
+            setStatus("Appel rejeté");
+        } catch (final IOException e) {
+            setStatus("Erreur lors du rejet de l'appel : " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Gère la fin d'un appel en cours.
+     */
+    @FXML
+    private void handleEndCall(ActionEvent event) {
+        try {
+            final CallSession currentSession = callManager.getCurrentSession();
+            if (currentSession == null) {
+                setStatus("Aucun appel à terminer");
+                return;
+            }
+            
+            // Déterminer l'autre utilisateur dans l'appel
+            final long otherUserId = (currentSession.getCallerUserId() == chatService.getCurrentUserId())
+                    ? currentSession.getReceiverUserId()
+                    : currentSession.getCallerUserId();
+            
+            // Envoyer le signal de fin d'appel
+            final CallSignal endSignal = chatService.createCallEnd(
+                    currentSession.getSessionId(), 
+                    otherUserId);
+            chatService.sendCallSignal(endSignal);
+            
+            // Terminer l'appel localement
+            callManager.endCall();
+            
+            // Masquer l'interface d'appel
+            hideCallUI();
+            
+            setStatus("Appel terminé");
+        } catch (final IOException e) {
+            setStatus("Erreur lors de la fin de l'appel : " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Gère l'activation/désactivation du microphone.
+     */
+    @FXML
+    private void handleToggleMute(ActionEvent event) {
+        final boolean muted = muteButton.isSelected();
+        callManager.setMicrophoneMuted(muted);
+        muteButton.setText(muted ? "Activer micro" : "Muet");
+    }
+    
+    /**
+     * Gère les signaux d'appel reçus.
+     */
+    private void handleCallSignal(final CallSignal signal) {
+        Platform.runLater(() -> {
+            try {
+                switch (signal.getType()) {
+                    case CALL_REQUEST:
+                        handleIncomingCallRequest(signal);
+                        break;
+                        
+                    case CALL_ACCEPT:
+                        handleCallAccepted(signal);
+                        break;
+                        
+                    case CALL_REJECT:
+                        handleCallRejected(signal);
+                        break;
+                        
+                    case CALL_END:
+                        handleCallEnded(signal);
+                        break;
+                        
+                    case CALL_BUSY:
+                        handleCallBusy(signal);
+                        break;
+                }
+            } catch (final Exception e) {
+                setStatus("Erreur lors du traitement du signal d'appel : " + e.getMessage());
+            }
+        });
+    }
+    
+    /**
+     * Gère une demande d'appel entrante.
+     */
+    private void handleIncomingCallRequest(final CallSignal signal) throws IOException {
+        // Vérifier si un appel est déjà en cours
+        if (callManager.isCallActive()) {
+            // Envoyer un signal d'occupation
+            final CallSignal busySignal = CallSignal.createCallBusy(
+                    signal.getSessionId(), 
+                    signal.getReceiverUserId(), 
+                    signal.getSenderUserId());
+            chatService.sendCallSignal(busySignal);
+            return;
+        }
+        
+        // Récupérer l'utilisateur appelant
+        final User caller = userService.getUserById(signal.getSenderUserId());
+        
+        // Créer une session d'appel
+        final CallSession callSession = new CallSession(signal.getSenderUserId(), signal.getReceiverUserId());
+        callSession.setSessionId(signal.getSessionId());
+        callSession.setStatus(CallSession.CallStatus.RINGING);
+        
+        // Définir l'utilisateur distant dans le CallManager
+        callManager.setRemoteUser(caller);
+        
+        // Afficher la fenêtre de dialogue d'appel entrant
+        showIncomingCallDialog(callSession, caller);
+    }
+    
+    /**
+     * Gère l'acceptation d'un appel par le destinataire.
+     */
+    private void handleCallAccepted(final CallSignal signal) {
+        // Configurer la connexion d'appel avec les informations du destinataire
+        callManager.setupCallConnection(signal.getIpAddress(), signal.getPort());
+        
+        // Mettre à jour l'interface d'appel
+        updateCallUIForActiveCall();
+    }
+    
+    /**
+     * Gère le rejet d'un appel par le destinataire.
+     */
+    private void handleCallRejected(final CallSignal signal) {
+        // Terminer l'appel localement
+        callManager.endCall();
+        
+        // Masquer l'interface d'appel
+        hideCallUI();
+        
+        setStatus("Appel rejeté par le destinataire");
+    }
+    
+    /**
+     * Gère la fin d'un appel par l'autre partie.
+     */
+    private void handleCallEnded(final CallSignal signal) {
+        // Terminer l'appel localement
+        callManager.endCall();
+        
+        // Masquer l'interface d'appel
+        hideCallUI();
+        
+        setStatus("Appel terminé par l'autre partie");
+    }
+    
+    /**
+     * Gère le cas où le destinataire est occupé.
+     */
+    private void handleCallBusy(final CallSignal signal) {
+        // Terminer l'appel localement
+        callManager.endCall();
+        
+        // Masquer l'interface d'appel
+        hideCallUI();
+        
+        setStatus("Le destinataire est occupé");
+    }
+    
+    /**
+     * Affiche la fenêtre de dialogue pour un appel entrant.
+     */
+    private void showIncomingCallDialog(final CallSession callSession, final User caller) {
+        try {
+            // Charger le FXML de la fenêtre de dialogue
+            final FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/call-dialog.fxml"));
+            final Parent dialogRoot = loader.load();
+            
+            // Récupérer le contrôleur
+            final CallDialogController controller = loader.getController();
+            
+            // Initialiser le contrôleur avec les informations d'appel
+            controller.initData(
+                    callSession, 
+                    caller, 
+                    null, // L'adresse IP sera définie lors de l'acceptation
+                    0,    // Le port sera défini lors de l'acceptation
+                    () -> {
+                        // Callback pour l'acceptation
+                        showCallUI(true);
+                    },
+                    () -> {
+                        // Callback pour le rejet
+                        // Rien à faire ici, le contrôleur envoie déjà le signal de rejet
+                    });
+            
+            // Créer et afficher la fenêtre
+            final Stage dialogStage = new Stage();
+            dialogStage.initModality(Modality.APPLICATION_MODAL);
+            dialogStage.initStyle(StageStyle.UNDECORATED);
+            dialogStage.setScene(new Scene(dialogRoot));
+            dialogStage.setTitle("Appel entrant");
+            dialogStage.show();
+            
+        } catch (final IOException e) {
+            setStatus("Erreur lors de l'affichage de la fenêtre d'appel : " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Affiche l'interface d'appel.
+     * 
+     * @param incoming true si c'est un appel entrant, false si c'est un appel sortant
+     */
+    private void showCallUI(final boolean incoming) {
+        callControlsBox.setVisible(true);
+        callControlsBox.setManaged(true);
+        
+        if (incoming) {
+            // Pour un appel entrant, on affiche les boutons Accepter et Refuser
+            acceptCallButton.setVisible(true);
+            acceptCallButton.setManaged(true);
+            rejectCallButton.setVisible(true);
+            rejectCallButton.setManaged(true);
+            endCallButton.setVisible(false);
+            endCallButton.setManaged(false);
+            muteButton.setVisible(false);
+            muteButton.setManaged(false);
+        } else {
+            // Pour un appel sortant, on affiche uniquement le bouton Terminer
+            acceptCallButton.setVisible(false);
+            acceptCallButton.setManaged(false);
+            rejectCallButton.setVisible(false);
+            rejectCallButton.setManaged(false);
+            endCallButton.setVisible(true);
+            endCallButton.setManaged(true);
+            muteButton.setVisible(false);
+            muteButton.setManaged(false);
+        }
+    }
+    
+    /**
+     * Met à jour l'interface d'appel pour un appel actif.
+     */
+    private void updateCallUIForActiveCall() {
+        callControlsBox.setVisible(true);
+        callControlsBox.setManaged(true);
+        
+        acceptCallButton.setVisible(false);
+        acceptCallButton.setManaged(false);
+        rejectCallButton.setVisible(false);
+        rejectCallButton.setManaged(false);
+        endCallButton.setVisible(true);
+        endCallButton.setManaged(true);
+        muteButton.setVisible(true);
+        muteButton.setManaged(true);
+    }
+    
+    /**
+     * Masque l'interface d'appel.
+     */
+    private void hideCallUI() {
+        callControlsBox.setVisible(false);
+        callControlsBox.setManaged(false);
     }
 
     private <T> ListCell<T> createCell(
@@ -198,7 +600,6 @@ public class ChatController {
     }
 
     private Image loadImage(final String imageUrl, final double size) {
-        
         try (InputStream stream = getClass().getResourceAsStream(imageUrl)) {
             if (stream != null) {
                 return new Image(stream, size, size, true, true);

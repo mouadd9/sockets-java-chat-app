@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Font?>
+
+<VBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      fx:controller="org.example.client.gui.controllers.CallDialogController"
+      spacing="15" alignment="CENTER"
+      prefWidth="350" prefHeight="200"
+      style="-fx-background-color: white; -fx-border-color: #cccccc; -fx-border-radius: 5;">
+    
+    <padding>
+        <Insets top="20" right="20" bottom="20" left="20"/>
+    </padding>
+    
+    <Label fx:id="callerNameLabel" text="Nom de l'appelant" style="-fx-font-weight: bold;">
+        <font>
+            <Font size="16"/>
+        </font>
+    </Label>
+    
+    <Label fx:id="callStatusLabel" text="Appel entrant...">
+        <font>
+            <Font size="14"/>
+        </font>
+    </Label>
+    
+    <HBox spacing="20" alignment="CENTER">
+        <Button fx:id="acceptButton" text="Accepter" onAction="#handleAcceptCall" 
+                style="-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold; -fx-min-width: 100px;"/>
+        <Button fx:id="rejectButton" text="Refuser" onAction="#handleRejectCall"
+                style="-fx-background-color: #F44336; -fx-text-fill: white; -fx-font-weight: bold; -fx-min-width: 100px;"/>
+    </HBox>
+</VBox>
