@@ -100,10 +100,32 @@ public class LoginController {
         );
     }
 
+    /**
+     * Gère le clic sur le lien "Créer un compte" pour naviguer vers la page d'inscription
+     */
+    @FXML
+    private void handleRegisterLink(final ActionEvent event) {
+        try {
+            // Charger la vue d'inscription
+            final FXMLLoader loader = new FXMLLoader(LoginController.class.getResource("/fxml/register.fxml"));
+            final Parent registerView = loader.load();
+            
+            // Créer et afficher la nouvelle scène
+            final Scene registerScene = new Scene(registerView, 600, 500);
+            final Stage currentStage = (Stage) loginButton.getScene().getWindow();
+            
+            currentStage.setTitle("Inscription");
+            currentStage.setScene(registerScene);
+            currentStage.centerOnScreen();
+        } catch (final IOException e) {
+            showError("Erreur d'interface", "Impossible d'ouvrir la fenêtre d'inscription: " + e.getMessage());
+        }
+    }
+
     // this function loads chat.fxml and configures it with a controller chatController
     private void openChatWindow(final String userEmail) throws IOException {
         // Charger la vue de chat
-        final FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/chat.fxml"));
+        final FXMLLoader loader = new FXMLLoader(LoginController.class.getResource("/fxml/chat.fxml"));
         final Parent chatView = loader.load();
         
         // Configurer le contrôleur de chat

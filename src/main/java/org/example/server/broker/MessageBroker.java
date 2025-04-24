@@ -8,8 +8,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import org.example.server.ClientHandler;
+import org.example.server.UdpCallServer;
 import org.example.shared.dao.GroupDAO;
 import org.example.shared.dao.MessageDAO;
+import org.example.shared.model.CallSignal;
 import org.example.shared.model.Message;
 import org.example.shared.model.enums.MessageStatus;
 
@@ -74,6 +76,66 @@ public class MessageBroker {
         }
     }
 
+    /**
+     * Achemine un signal d'appel vers le destinataire approprié.
+     * 
+     * @param signal Le signal d'appel à acheminer
+     */
+    public void routeCallSignal(final CallSignal signal) {
+        try {
+            // Traiter les signaux selon leur type
+            switch (signal.getType()) {
+                case CALL_REQUEST:
+                    // Enregistrer la session d'appel dans le serveur UDP pour un éventuel relais
+                    UdpCallServer.getInstance().registerSession(signal.getSessionId());
+                    // Transmettre la demande d'appel au destinataire
+                    deliverCallSignal(signal.getReceiverUserId(), signal);
+                    break;
+                    
+                case CALL_ACCEPT:
+                    // Enregistrer le point de terminaison du destinataire dans le serveur UDP
+                    UdpCallServer.getInstance().registerEndpoint(
+                            signal.getSessionId(), 
+                            false, 
+                            java.net.InetAddress.getByName(signal.getIpAddress()), 
+                            signal.getPort());
+                    // Transmettre l'acceptation à l'appelant
+                    deliverCallSignal(signal.getReceiverUserId(), signal);
+                    break;
+                    
+                case CALL_REJECT:
+                case CALL_BUSY:
+                    // Supprimer la session d'appel du serveur UDP
+                    UdpCallServer.getInstance().removeSession(signal.getSessionId());
+                    // Transmettre le rejet à l'appelant
+                    deliverCallSignal(signal.getReceiverUserId(), signal);
+                    break;
+                    
+                case CALL_END:
+                    // Supprimer la session d'appel du serveur UDP
+                    UdpCallServer.getInstance().removeSession(signal.getSessionId());
+                    // Transmettre la fin d'appel à l'autre partie
+                    deliverCallSignal(signal.getReceiverUserId(), signal);
+                    break;
+            }
+        } catch (final Exception e) {
+            System.err.println("Erreur lors du routage du signal d'appel: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Délivre un signal d'appel à un utilisateur spécifique.
+     * 
+     * @param userId L'ID de l'utilisateur destinataire
+     * @param signal Le signal d'appel à délivrer
+     */
+    private void deliverCallSignal(final long userId, final CallSignal signal) {
+        final MessageQueue queue = userQueues.get(userId);
+        if (queue != null) {
+            queue.tryDeliverCallSignal(signal);
+        }
+    }
+
     private void persistMessage(final Message message) {
         message.setStatus(MessageStatus.QUEUED);
         try {
@@ -125,6 +187,24 @@ public class MessageBroker {
                     return true;
                 } catch (final IOException e) {
                     System.err.println("Delivery failed for message " + message.getId());
+                }
+            }
+            return false;
+        }
+        
+        /**
+         * Tente de délivrer un signal d'appel au client.
+         * 
+         * @param signal Le signal d'appel à délivrer
+         * @return true si la livraison a réussi
+         */
+        boolean tryDeliverCallSignal(final CallSignal signal) {
+            if (listener != null) {
+                try {
+                    listener.onCallSignalReceived(signal);
+                    return true;
+                } catch (final IOException e) {
+                    System.err.println("Delivery failed for call signal to user " + userId);
                 }
             }
             return false;
