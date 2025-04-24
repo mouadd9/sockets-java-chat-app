@@ -21,6 +21,7 @@ public class ClientHandler implements Runnable {
     private final MessageBroker broker;
     private final UserDAO userDAO;
     private final ObjectMapper mapper;
+    private final ServerFileService fileService;
 
     private String clientEmail;
     private long clientId;
@@ -33,6 +34,7 @@ public class ClientHandler implements Runnable {
         this.broker = MessageBroker.getInstance();
         this.userDAO = new UserDAO();
         this.mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        this.fileService = new ServerFileService();
     }
 
     @Override
@@ -82,11 +84,38 @@ public class ClientHandler implements Runnable {
                 if ("LOGOUT".equalsIgnoreCase(message.getContent())) {
                     terminateSession();
                 } else {
+                    // Process the message
+                    if (message.isMediaMessage()) {
+                        processMediaMessage(message);
+                    }
                     broker.sendMessage(message);
                 }
             } catch (final IOException e) {
                 System.out.println("Invalid message format: " + messageJson);
             }
+        }
+    }
+
+    /**
+     * Processes a media message by ensuring the file is available on the server
+     * for all clients to access.
+     *
+     * @param message The media message
+     */
+    private void processMediaMessage(Message message) {
+        try {
+            // For most cases, the client will have already saved the file locally
+            // and the server will use the same path. However, we need to make sure
+            // the directory structure exists on the server.
+
+            // Ensure the corresponding media directory exists based on type
+            fileService.ensureMediaDirectoriesExist();
+
+            System.out.println("Processing media message: " + message.getType() +
+                    ", File: " + (message.getFileName() != null ? message.getFileName() : "Unknown"));
+
+        } catch (Exception e) {
+            System.err.println("Error processing media message: " + e.getMessage());
         }
     }
 

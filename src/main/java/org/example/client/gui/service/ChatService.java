@@ -1,9 +1,6 @@
 package org.example.client.gui.service;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.ConnectException;
 import java.net.Socket;
 import java.util.List;
@@ -18,6 +15,7 @@ import org.example.shared.model.User;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.example.shared.model.enums.MessageType;
 
 public class ChatService {
     private static final String SERVER_ADDRESS = "localhost";
@@ -37,15 +35,21 @@ public class ChatService {
     private final GroupDAO groupDAO;
     private final UserDAO userDAO; // Accès direct au DAO sans UserService
 
+    // New file service for handling multimedia
+    private final FileService fileService;
+
     public ChatService() {
         this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
         this.messageDAO = new MessageDAO();
         this.groupDAO = new GroupDAO();
         this.userDAO = new UserDAO();
+        this.fileService = new FileService();
     }
 
+    // resp : initie la connexion avec le serveur / l'authentification
     public boolean connect(final Credentials credentials) throws IOException {
         try {
+            // resp 1 : etablissement de la connexion avec le serveur (creation de la socket coté serveur)
             System.out.println("Connexion au serveur " + SERVER_ADDRESS + ":" + SERVER_PORT);
             socket = new Socket(SERVER_ADDRESS, SERVER_PORT);
             out = new PrintWriter(socket.getOutputStream(), true);
@@ -118,10 +122,6 @@ public class ChatService {
         }
     }
 
-    public String getCurrentUserEmail() {
-        return userEmail;
-    }
-
     public Message createDirectMessage(final String senderEmail, final String receiverEmail, final String content)
             throws IOException {
         final User sender = userDAO.findUserByEmail(senderEmail);
@@ -133,7 +133,85 @@ public class ChatService {
         final User sender = userDAO.findUserByEmail(senderEmail);
         return Message.newGroupMessage(sender.getId(), groupId, content);
     }
-    
+
+    // New methods for creating multimedia messages
+    public Message createDirectMediaMessage(final String senderEmail, final String receiverEmail, final File mediaFile)
+            throws IOException {
+        final User sender = userDAO.findUserByEmail(senderEmail);
+        final User receiver = userDAO.findUserByEmail(receiverEmail);
+
+        // Detect file type and save the file
+        final MessageType type = fileService.detectMessageType(mediaFile.getName());
+        // relative path of the media
+        final String filePath = fileService.saveFile(mediaFile, type, mediaFile.getName());
+        final String mimeType = fileService.getMimeType(mediaFile);
+
+        return Message.newDirectMediaMessage(
+                sender.getId(),
+                receiver.getId(),
+                filePath,
+                type,
+                mediaFile.getName(),
+                mediaFile.length(),
+                mimeType);
+    }
+
+    public Message createGroupMediaMessage(final String senderEmail, final long groupId, final File mediaFile)
+            throws IOException {
+        final User sender = userDAO.findUserByEmail(senderEmail);
+
+        // Detect file type and save the file
+        final MessageType type = fileService.detectMessageType(mediaFile.getName());
+        final String filePath = fileService.saveFile(mediaFile, type, mediaFile.getName());
+        final String mimeType = fileService.getMimeType(mediaFile);
+
+        return Message.newGroupMediaMessage(
+                sender.getId(),
+                groupId,
+                filePath,
+                type,
+                mediaFile.getName(),
+                mediaFile.length(),
+                mimeType);
+    }
+
+    public Message createDirectAudioMessage(final String senderEmail, final String receiverEmail, final File audioFile)
+            throws IOException {
+        final User sender = userDAO.findUserByEmail(senderEmail);
+        final User receiver = userDAO.findUserByEmail(receiverEmail);
+
+        // Save the audio file
+        final String filePath = fileService.saveFile(audioFile, MessageType.AUDIO, audioFile.getName());
+        final String mimeType = fileService.getMimeType(audioFile);
+
+        return Message.newDirectMediaMessage(
+                sender.getId(),
+                receiver.getId(),
+                filePath,
+                MessageType.AUDIO,
+                audioFile.getName(),
+                audioFile.length(),
+                mimeType);
+    }
+
+    public Message createGroupAudioMessage(final String senderEmail, final long groupId, final File audioFile)
+            throws IOException {
+        final User sender = userDAO.findUserByEmail(senderEmail);
+
+        // Save the audio file
+        final String filePath = fileService.saveFile(audioFile, MessageType.AUDIO, audioFile.getName());
+        final String mimeType = fileService.getMimeType(audioFile);
+
+        return Message.newGroupMediaMessage(
+                sender.getId(),
+                groupId,
+                filePath,
+                MessageType.AUDIO,
+                audioFile.getName(),
+                audioFile.length(),
+                mimeType);
+    }
+    // resp : envoi des messages au serveur via socket
     public boolean sendMessage(final Message message) throws IOException {
         if (socket == null || socket.isClosed() || out == null) {
             throw new IOException("Non connecté au serveur");
@@ -143,15 +221,32 @@ public class ChatService {
         return true;
     }
 
+    /**
+     * Gets the file associated with a media message.
+     *
+     * @param message The message
+     * @return The file
+     */
+    public File getMediaFile(final Message message) {
+        if (!message.isMediaMessage()) {
+            throw new IllegalArgumentException("Not a media message");
+        }
+        File file = fileService.getFile(message.getContent());
+        System.out.println("Looking for media file at: " + file.getAbsolutePath());
+        System.out.println("File exists: " + file.exists());
+        return file;
+    }
+
     // Récupère la conversation entre deux utilisateurs
     public List<Message> getConversation(final long user1Id, final long user2Id) throws IOException {
         return messageDAO.getConversation(user1Id, user2Id);
     }
 
+    // resp : configuration du message consumer (handleIncomingMessage)
     public void setMessageConsumer(final Consumer<Message> consumer) {
         this.messageConsumer = consumer;
     }
-
+    // resp : initie une boucle qui reagit a tous message recue
     private void startMessageListener() {
         isRunning = true;
         listenerThread = new Thread(() -> {

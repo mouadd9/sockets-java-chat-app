@@ -102,3 +102,273 @@
     -fx-text-fill: white;
     -fx-font-size: 18px;
 }
+
+/* Styles pour la liste de contacts */
+.contact-list-cell {
+    -fx-padding: 8px;
+    -fx-background-color: transparent;
+}
+
+.contact-list-cell:selected {
+    -fx-background-color: #e0f7fa;
+}
+
+/* Styles pour la liste de groupes */
+.group-list-cell {
+    -fx-padding: 8px;
+    -fx-background-color: transparent;
+}
+
+.group-list-cell:selected {
+    -fx-background-color: #e0f7fa;
+}
+
+/* Styles pour les conteneurs de messages */
+.message-container {
+    -fx-padding: 0px 5px;
+}
+
+/* Styles pour le contenu des messages */
+.message-content {
+    -fx-background-radius: 15px;
+    -fx-padding: 5px 15px;
+}
+
+/* Styles pour mes messages et ceux des autres */
+.my-message {
+    -fx-background-color: #DCF8C6;
+}
+
+.other-message {
+    -fx-background-color: #E1E1E1;
+}
+
+/* Style pour les zones d'entrée de texte */
+.text-field {
+    -fx-background-radius: 5px;
+    -fx-padding: 5px 15px;
+}
+
+/* Style pour le conteneur de messages */
+.chat-history {
+    -fx-background-color: #f5f5f5;
+    -fx-padding: 10px;
+}
+
+/* Style pour le bouton d'envoi */
+.send-button {
+    -fx-background-radius: 10px;
+    -fx-background-color: #4caf50;
+    -fx-text-fill: white;
+}
+
+.send-button:hover {
+    -fx-background-color: #66bb6a;
+}
+
+/* Style pour les noms d'expéditeur */
+.sender-name {
+    -fx-font-weight: bold;
+    -fx-text-fill: #000;
+    -fx-underline: true;
+}
+
+/* Style pour les horodatages */
+.message-time {
+    -fx-font-size: 0.8em;
+    -fx-text-fill: #757575;
+    -fx-padding: 0 0 0 8px;
+}
+
+/* Style pour le texte des messages */
+.message-text {
+    -fx-wrap-text: true;
+}
+
+/* Container pour le contenu du message et l'horodatage */
+.content-time-container {
+    -fx-alignment: baseline-right;
+    -fx-spacing: 5;
+}
+
+/* Style pour les statuts */
+.status-label {
+    -fx-text-fill: #757575;
+    -fx-font-style: italic;
+}
+
+/* Style pour l'en-tête */
+.header {
+    -fx-background-color: #4caf50;
+    -fx-padding: 10px;
+}
+
+.header-text {
+    -fx-text-fill: white;
+    -fx-font-size: 18px;
+}
+
+/* New styles for multimedia messages */
+
+/* Media button */
+.media-button {
+    -fx-background-radius: 20;
+    -fx-min-width: 35px;
+    -fx-min-height: 35px;
+    -fx-max-width: 35px;
+    -fx-max-height: 35px;
+    -fx-background-color: #f1f1f1;
+    -fx-text-fill: #4caf50;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+.media-button:hover {
+    -fx-background-color: #e1e1e1;
+}
+
+/* Record button */
+.record-button {
+    -fx-background-radius: 20;
+    -fx-min-width: 35px;
+    -fx-min-height: 35px;
+    -fx-max-width: 35px;
+    -fx-max-height: 35px;
+    -fx-background-color: #f1f1f1;
+    -fx-text-fill: #f44336;
+    -fx-font-size: 16px;
+}
+
+.record-button:hover {
+    -fx-background-color: #e1e1e1;
+}
+
+.record-button.recording {
+    -fx-background-color: #f44336;
+    -fx-text-fill: white;
+}
+
+/* Attachment preview */
+.attachment-preview {
+    -fx-background-color: #f1f1f1;
+    -fx-padding: 8px;
+    -fx-background-radius: 5px;
+    -fx-border-radius: 5px;
+    -fx-border-color: #ddd;
+    -fx-border-width: 1px;
+}
+
+.attachment-name {
+    -fx-text-fill: #444;
+}
+
+.remove-attachment-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #888;
+    -fx-font-size: 16px;
+    -fx-min-width: 24px;
+    -fx-min-height: 24px;
+    -fx-max-width: 24px;
+    -fx-max-height: 24px;
+    -fx-padding: 0;
+}
+
+.remove-attachment-button:hover {
+    -fx-text-fill: #f44336;
+}
+
+/* Recording indicator */
+.recording-indicator {
+    -fx-background-color: #ffebee;
+    -fx-padding: 8px;
+    -fx-background-radius: 5px;
+    -fx-border-radius: 5px;
+    -fx-border-color: #ffcdd2;
+    -fx-border-width: 1px;
+}
+
+.recording-label {
+    -fx-text-fill: #d32f2f;
+}
+
+.recording-time {
+    -fx-text-fill: #d32f2f;
+    -fx-font-family: monospace;
+}
+
+/* Media message containers */
+.media-message-container {
+    -fx-padding: 5px;
+    -fx-background-color: transparent;
+}
+
+.image-preview {
+    -fx-background-radius: 5px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 5, 0, 0, 0);
+    -fx-cursor: hand;
+}
+
+.video-preview {
+    -fx-background-radius: 5px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 5, 0, 0, 0);
+    -fx-cursor: hand;
+}
+
+.audio-player {
+    -fx-background-color: #f5f5f5;
+    -fx-background-radius: 20px;
+    -fx-padding: 5px 10px;
+    -fx-alignment: center-left;
+    -fx-spacing: 5;
+}
+
+.audio-play-button {
+    -fx-background-radius: 15px;
+    -fx-min-width: 30px;
+    -fx-min-height: 30px;
+    -fx-max-width: 30px;
+    -fx-max-height: 30px;
+    -fx-background-color: #4caf50;
+    -fx-text-fill: white;
+    -fx-font-size: 12px;
+    -fx-padding: 0;
+}
+
+.audio-progress {
+    -fx-pref-height: 5px;
+}
+
+.document-preview {
+    -fx-background-color: #f1f1f1;
+    -fx-background-radius: 5px;
+    -fx-border-radius: 5px;
+    -fx-border-color: #ddd;
+    -fx-border-width: 1px;
+    -fx-padding: 10px;
+    -fx-alignment: center-left;
+    -fx-spacing: 10;
+    -fx-cursor: hand;
+}
+
+.document-icon {
+    -fx-text-fill: #4285f4;
+    -fx-font-size: 24px;
+}
+
+.document-name {
+    -fx-text-fill: #333;
+}
+
+.document-size {
+    -fx-text-fill: #888;
+    -fx-font-size: 10px;
+}
+
+<!-- Also add this style to chat.css -->
+.media-gallery-button {
+    -fx-background-color: #f1f1f1;
+    -fx-text-fill: #4caf50;
+    -fx-padding: 5px 10px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+}

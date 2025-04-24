@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 import org.example.shared.model.enums.MessageStatus;
+import org.example.shared.model.enums.MessageType;  // New import
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -17,10 +18,18 @@ public class Message {
     private LocalDateTime timestamp;
     private MessageStatus status; // Utilise l'Enum MessageStatus
 
+    // New fields for multimedia support
+    private MessageType type;    // Type of message (TEXT, IMAGE, VIDEO, DOCUMENT, AUDIO)
+    private String fileName;     // Original file name
+    private Long fileSize;       // Size of file in bytes
+    private String mimeType;     // MIME type of the file
+
+
     // Constructeur par défaut
     public Message() {
         this.timestamp = LocalDateTime.now();
         this.status = MessageStatus.SENT;
+        this.type = MessageType.TEXT;  // Default type is TEXT
     }
 
     // Méthode factory pour créer un message direct
@@ -41,6 +50,39 @@ public class Message {
         return msg;
     }
 
+    // New factory methods for media messages
+    public static Message newDirectMediaMessage(final long senderUserId, final long receiverUserId,
+                                                final String filePath, final MessageType type, final String fileName,
+                                                final Long fileSize, final String mimeType) {
+        final Message msg = new Message();
+        msg.setSenderUserId(senderUserId);
+        msg.setReceiverUserId(receiverUserId);
+        msg.setContent(filePath);
+        msg.setType(type);
+        msg.setFileName(fileName);
+        msg.setFileSize(fileSize);
+        msg.setMimeType(mimeType);
+        return msg;
+    }
+
+    public static Message newGroupMediaMessage(final long senderUserId, final long groupId,
+                                               final String filePath, final MessageType type, final String fileName,
+                                               final Long fileSize, final String mimeType) {
+        final Message msg = new Message();
+        msg.setSenderUserId(senderUserId);
+        msg.setGroupId(groupId);
+        msg.setContent(filePath);
+        msg.setType(type);
+        msg.setFileName(fileName);
+        msg.setFileSize(fileSize);
+        msg.setMimeType(mimeType);
+        return msg;
+    }
+
+
+
+
+
     public long getId() { return id; }
     public void setId(final long id) { this.id = id; }
     public long getSenderUserId() { return senderUserId; }
@@ -56,6 +98,19 @@ public class Message {
     public MessageStatus getStatus() { return status; }
     public void setStatus(final MessageStatus status) { this.status = status; }
 
+    // New getters and setters for multimedia
+    public MessageType getType() { return type; }
+    public void setType(final MessageType type) { this.type = type; }
+    public String getFileName() { return fileName; }
+    public void setFileName(final String fileName) { this.fileName = fileName; }
+    public Long getFileSize() { return fileSize; }
+    public void setFileSize(final Long fileSize) { this.fileSize = fileSize; }
+    public String getMimeType() { return mimeType; }
+    public void setMimeType(final String mimeType) { this.mimeType = mimeType; }
+
+
+
+
     @JsonIgnore
     public boolean isDirectMessage() {
         return receiverUserId != null && groupId == null;
@@ -64,6 +119,36 @@ public class Message {
     @JsonIgnore
     public boolean isGroupMessage() {
         return groupId != null && receiverUserId == null;
+    }
+
+    @JsonIgnore
+    public boolean isTextMessage() {
+        return type == MessageType.TEXT;
+    }
+
+    @JsonIgnore
+    public boolean isMediaMessage() {
+        return type != MessageType.TEXT;
+    }
+
+    @JsonIgnore
+    public boolean isImageMessage() {
+        return type == MessageType.IMAGE;
+    }
+
+    @JsonIgnore
+    public boolean isVideoMessage() {
+        return type == MessageType.VIDEO;
+    }
+
+    @JsonIgnore
+    public boolean isDocumentMessage() {
+        return type == MessageType.DOCUMENT;
+    }
+
+    @JsonIgnore
+    public boolean isAudioMessage() {
+        return type == MessageType.AUDIO;
     }
 
     @Override

@@ -12,11 +12,12 @@ import java.util.List;
 
 import org.example.shared.model.Message;
 import org.example.shared.model.enums.MessageStatus;
+import org.example.shared.model.enums.MessageType;
 
 public class MessageDAO {
 
     public void createMessage(final Message message) {
-        final String sql = "INSERT INTO messages (sender_user_id, receiver_user_id, group_id, content, timestamp, status) VALUES (?,?,?,?,?,?)";
+        final String sql = "INSERT INTO messages (sender_user_id, receiver_user_id, group_id, content, timestamp, status, " + "message_type, file_name, file_size, mime_type) VALUES (?,?,?,?,?,?,?,?,?,?)";
         try (Connection conn = JDBCUtil.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
@@ -34,6 +35,25 @@ public class MessageDAO {
             stmt.setString(4, message.getContent());
             stmt.setTimestamp(5, Timestamp.valueOf(message.getTimestamp()));
             stmt.setString(6, message.getStatus().name());
+            stmt.setString(7, message.getType().name());
+            // Set multimedia fields
+            if (message.getFileName() != null) {
+                stmt.setString(8, message.getFileName());
+            } else {
+                stmt.setNull(8, Types.VARCHAR);
+            }
+
+            if (message.getFileSize() != null) {
+                stmt.setLong(9, message.getFileSize());
+            } else {
+                stmt.setNull(9, Types.BIGINT);
+            }
+
+            if (message.getMimeType() != null) {
+                stmt.setString(10, message.getMimeType());
+            } else {
+                stmt.setNull(10, Types.VARCHAR);
+            }
             stmt.executeUpdate();
             try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
                 if (generatedKeys.next()) {
@@ -53,21 +73,7 @@ public class MessageDAO {
             stmt.setLong(1, id);
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    final Message message = new Message();
-                    message.setId(rs.getLong("id"));
-                    message.setSenderUserId(rs.getLong("sender_user_id"));
-                    final long receiverUserId = rs.getLong("receiver_user_id");
-                    if (!rs.wasNull()) {
-                        message.setReceiverUserId(receiverUserId);
-                    }
-                    final long groupId = rs.getLong("group_id");
-                    if (!rs.wasNull()) {
-                        message.setGroupId(groupId);
-                    }
-                    message.setContent(rs.getString("content"));
-                    message.setTimestamp(rs.getTimestamp("timestamp").toLocalDateTime());
-                    message.setStatus(MessageStatus.valueOf(rs.getString("status")));
-                    return message;
+                    return extractMessageFromResultSet(rs);
                 }
             }
         } catch (final SQLException e) {
@@ -92,24 +98,7 @@ public class MessageDAO {
             stmt.setLong(4, receiverUserId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    final Message message = new Message();
-                    message.setId(rs.getLong("id"));
-                    message.setSenderUserId(rs.getLong("sender_user_id"));
-                    final long rec = rs.getLong("receiver_user_id");
-                    if (!rs.wasNull()) {
-                        message.setReceiverUserId(rec);
-                    }
-                    final long grp = rs.getLong("group_id");
-                    if (!rs.wasNull()) {
-                        message.setGroupId(grp);
-                    }
-                    message.setContent(rs.getString("content"));
-                    final Timestamp ts = rs.getTimestamp("timestamp");
-                    if (ts != null) {
-                        message.setTimestamp(ts.toLocalDateTime());
-                    }
-                    message.setStatus(MessageStatus.valueOf(rs.getString("status")));
-                    messages.add(message);
+                    messages.add(extractMessageFromResultSet(rs));
                 }
             }
         }
@@ -130,24 +119,7 @@ public class MessageDAO {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    final Message message = new Message();
-                    message.setId(rs.getLong("id"));
-                    message.setSenderUserId(rs.getLong("sender_user_id"));
-                    final long receiver = rs.getLong("receiver_user_id");
-                    if (!rs.wasNull()) {
-                        message.setReceiverUserId(receiver);
-                    }
-                    final long group = rs.getLong("group_id");
-                    if (!rs.wasNull()) {
-                        message.setGroupId(group);
-                    }
-                    message.setContent(rs.getString("content"));
-                    final Timestamp ts = rs.getTimestamp("timestamp");
-                    if (ts != null) {
-                        message.setTimestamp(ts.toLocalDateTime());
-                    }
-                    message.setStatus(MessageStatus.valueOf(rs.getString("status")));
-                    messages.add(message);
+                    messages.add(extractMessageFromResultSet(rs));
                 }
             }
         } catch (final SQLException e) {
@@ -164,5 +136,49 @@ public class MessageDAO {
             final int affectedRows = stmt.executeUpdate();
             return affectedRows > 0;
         }
+    }
+
+    // Helper method to extract a Message from a ResultSet
+    private Message extractMessageFromResultSet(final ResultSet rs) throws SQLException {
+        final Message message = new Message();
+        message.setId(rs.getLong("id"));
+        message.setSenderUserId(rs.getLong("sender_user_id"));
+
+        final long receiverUserId = rs.getLong("receiver_user_id");
+        if (!rs.wasNull()) {
+            message.setReceiverUserId(receiverUserId);
+        }
+
+        final long groupId = rs.getLong("group_id");
+        if (!rs.wasNull()) {
+            message.setGroupId(groupId);
+        }
+
+        message.setContent(rs.getString("content"));
+        final Timestamp ts = rs.getTimestamp("timestamp");
+        if (ts != null) {
+            message.setTimestamp(ts.toLocalDateTime());
+        }
+
+        message.setStatus(MessageStatus.valueOf(rs.getString("status")));
+
+        // Extract multimedia fields
+        String messageTypeStr = rs.getString("message_type");
+        if (messageTypeStr != null) {
+            message.setType(MessageType.valueOf(messageTypeStr));
+        } else {
+            message.setType(MessageType.TEXT); // Default to TEXT for backward compatibility
+        }
+
+        message.setFileName(rs.getString("file_name"));
+
+        final long fileSize = rs.getLong("file_size");
+        if (!rs.wasNull()) {
+            message.setFileSize(fileSize);
+        }
+
+        message.setMimeType(rs.getString("mime_type"));
+
+        return message;
     }
 }

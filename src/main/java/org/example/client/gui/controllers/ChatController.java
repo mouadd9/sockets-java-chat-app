@@ -1,19 +1,26 @@
 package org.example.client.gui.controllers;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.stream.Collectors;
 
 import org.example.client.gui.repository.JsonLocalMessageRepository;
+import org.example.client.gui.service.AudioRecorderService;
 import org.example.client.gui.service.ChatService;
 import org.example.client.gui.service.ContactService;
+import org.example.client.gui.service.FileService;
 import org.example.client.gui.service.GroupService;
 import org.example.client.gui.service.UserService;
 import org.example.shared.model.Group;
 import org.example.shared.model.Message;
 import org.example.shared.model.User;
+import org.example.shared.model.enums.MessageType;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
@@ -25,19 +32,31 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.Button;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
+import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.stage.FileChooser;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
+
+import javax.sound.sampled.LineUnavailableException;
 
 public class ChatController {
     @FXML
@@ -54,6 +73,22 @@ public class ChatController {
     private ScrollPane chatScrollPane;
     @FXML
     private Label statusLabel;
+    @FXML
+    private Button mediaButton;
+    @FXML
+    private Button audioRecordButton;
+    @FXML
+    private HBox attachmentPreviewContainer;
+    @FXML
+    private Label attachmentNameLabel;
+    @FXML
+    private HBox recordingIndicatorContainer;
+    @FXML
+    private Label recordingTimeLabel;
+
+    @FXML
+    private Button mediaGalleryButton;
+
 
     private ChatService chatService;
     private String userEmail;
@@ -67,13 +102,25 @@ public class ChatController {
     private final ContactService contactService = new ContactService();
     private final GroupService groupService = new GroupService();
     private final UserService userService = new UserService();
+    private final FileService fileService = new FileService();
+    private final AudioRecorderService audioRecorderService = new AudioRecorderService();
 
     private final Object loadLock = new Object();
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
 
+    // Media attachment state
+    private File selectedMediaFile;
+    private MessageType selectedMediaType;
+
+    // Audio recording state
+    private boolean isRecording = false;
+    private Timer recordingTimer;
+    private int recordingSeconds = 0;
+
     @FXML
     public void initialize() {
+        mediaGalleryButton.setOnAction(this::handleOpenMediaGallery);
         contactListView.setItems(contacts);
         groupListView.setItems(groups);
 
@@ -92,7 +139,12 @@ public class ChatController {
                 msg -> msg.map(m -> {
                     try {
                         final String prefix = (m.getSenderUserId() == chatService.getCurrentUserId()) ? "Vous: " : "";
-                        return prefix + truncate(m.getContent(), 30);
+                        if (m.isTextMessage()) {
+                            return prefix + truncate(m.getContent(), 30);
+                        } else {
+                            String mediaTypeIcon = getMediaTypeIcon(m.getType());
+                            return prefix + mediaTypeIcon + " " + (m.getFileName() != null ? m.getFileName() : "Média");
+                        }
                     } catch (final Exception e) {
                         return "Erreur chargement";
                     }
@@ -118,7 +170,12 @@ public class ChatController {
                         /* ignore */ }
                     final String prefix = (m.getSenderUserId() == chatService.getCurrentUserId() ? "Vous: "
                             : name + ": ");
-                    return prefix + truncate(m.getContent(), 30);
+                    if (m.isTextMessage()) {
+                        return prefix + truncate(m.getContent(), 30);
+                    } else {
+                        String mediaTypeIcon = getMediaTypeIcon(m.getType());
+                        return prefix + mediaTypeIcon + " " + (m.getFileName() != null ? m.getFileName() : "Média");
+                    }
                 }).orElse("")));
 
         contactListView.getSelectionModel().selectedItemProperty().addListener((obs, old, sel) -> {
@@ -142,6 +199,45 @@ public class ChatController {
         });
 
         messageField.setOnAction(this::handleSendMessage);
+
+        // Initialize media button context menu
+        final ContextMenu mediaMenu = new ContextMenu();
+
+        MenuItem imageItem = new MenuItem("Image");
+        imageItem.setOnAction(e -> openMediaFileChooser("Images", "*.png", "*.jpg", "*.jpeg", "*.gif"));
+
+        MenuItem videoItem = new MenuItem("Vidéo");
+        videoItem.setOnAction(e -> openMediaFileChooser("Vidéos", "*.mp4", "*.avi", "*.mov", "*.wmv"));
+
+        MenuItem documentItem = new MenuItem("Document");
+        documentItem.setOnAction(e -> openMediaFileChooser("Documents", "*.*"));
+
+        mediaMenu.getItems().addAll(imageItem, videoItem, documentItem);
+
+        mediaButton.setOnMouseClicked(e -> {
+            mediaMenu.show(mediaButton, e.getScreenX(), e.getScreenY());
+        });
+
+        // Check if audio recording is supported
+        if (!audioRecorderService.isAudioRecordingSupported()) {
+            audioRecordButton.setDisable(true);
+            audioRecordButton.setTooltip(new javafx.scene.control.Tooltip("L'enregistrement audio n'est pas pris en charge sur ce système"));
+        }
+    }
+
+    private String getMediaTypeIcon(MessageType type) {
+        switch (type) {
+            case IMAGE:
+                return "🖼️";
+            case VIDEO:
+                return "🎬";
+            case AUDIO:
+                return "🔊";
+            case DOCUMENT:
+                return "📄";
+            default:
+                return "";
+        }
     }
 
     public void initData(final ChatService service, final String userEmail) {
@@ -265,23 +361,57 @@ public class ChatController {
                 contentBox.getChildren().add(nameLabel);
             }
 
-            // Créer un conteneur horizontal pour le texte et l'horodatage
-            final HBox contentTimeContainer = new HBox();
-            contentTimeContainer.getStyleClass().add("content-time-container");
+            // For text messages, use the existing logic
+            if (message.isTextMessage()) {
+                // Créer un conteneur horizontal pour le texte et l'horodatage
+                final HBox contentTimeContainer = new HBox();
+                contentTimeContainer.getStyleClass().add("content-time-container");
 
-            // Texte du message
-            final Label contentLabel = new Label(message.getContent());
-            contentLabel.setWrapText(true);
-            contentLabel.getStyleClass().add("message-text");
-            contentLabel.setMaxWidth(chatHistoryContainer.getWidth() * 0.6); // Pour laisser de la place à l'horodatage
+                // Texte du message
+                final Label contentLabel = new Label(message.getContent());
+                contentLabel.setWrapText(true);
+                contentLabel.getStyleClass().add("message-text");
+                contentLabel.setMaxWidth(chatHistoryContainer.getWidth() * 0.6); // Pour laisser de la place à l'horodatage
 
-            // Horodatage
-            final Label timeLabel = new Label(message.getTimestamp().format(TIME_FMT));
-            timeLabel.getStyleClass().add("message-time");
+                // Horodatage
+                final Label timeLabel = new Label(message.getTimestamp().format(TIME_FMT));
+                timeLabel.getStyleClass().add("message-time");
 
-            // Assembler le conteneur de message
-            contentTimeContainer.getChildren().addAll(contentLabel, timeLabel);
-            contentBox.getChildren().add(contentTimeContainer);
+                // Assembler le conteneur de message
+                contentTimeContainer.getChildren().addAll(contentLabel, timeLabel);
+                contentBox.getChildren().add(contentTimeContainer);
+            }
+            // For media messages, create appropriate media preview
+            else {
+                // Add media content based on the type
+                switch (message.getType()) {
+                    case IMAGE:
+                        addImageContent(contentBox, message);
+                        break;
+                    case VIDEO:
+                        addVideoContent(contentBox, message);
+                        break;
+                    case AUDIO:
+                        addAudioContent(contentBox, message);
+                        break;
+                    case DOCUMENT:
+                        addDocumentContent(contentBox, message);
+                        break;
+                    default:
+                        // Fallback to text representation
+                        final Label fallbackLabel = new Label("Type de média non pris en charge");
+                        contentBox.getChildren().add(fallbackLabel);
+                }
+
+                // Add timestamp below the media
+                final HBox timeContainer = new HBox();
+                timeContainer.setAlignment(Pos.CENTER_RIGHT);
+                final Label timeLabel = new Label(message.getTimestamp().format(TIME_FMT));
+                timeLabel.getStyleClass().add("message-time");
+                timeContainer.getChildren().add(timeLabel);
+                contentBox.getChildren().add(timeContainer);
+            }
+
             messageContainer.getChildren().add(contentBox);
 
             if (isMine)
@@ -293,6 +423,284 @@ public class ChatController {
             });
         } catch (final IOException e) {
             setStatus("Erreur d'affichage du message : " + e.getMessage());
+        }
+    }
+
+    private void addImageContent(VBox contentBox, Message message) {
+        try {
+            System.out.println();
+            File imageFile = chatService.getMediaFile(message);
+            if (imageFile.exists()) {
+                Image image = new Image(imageFile.toURI().toString());
+                ImageView imageView = new ImageView(image);
+
+                // Limit image size
+                double maxWidth = 250;
+                double maxHeight = 250;
+
+                if (image.getWidth() > maxWidth || image.getHeight() > maxHeight) {
+                    double widthRatio = maxWidth / image.getWidth();
+                    double heightRatio = maxHeight / image.getHeight();
+                    double ratio = Math.min(widthRatio, heightRatio);
+
+                    imageView.setFitWidth(image.getWidth() * ratio);
+                    imageView.setFitHeight(image.getHeight() * ratio);
+                } else {
+                    imageView.setFitWidth(image.getWidth());
+                    imageView.setFitHeight(image.getHeight());
+                }
+
+                imageView.getStyleClass().add("image-preview");
+
+                // Add click handler to open the image in a new window
+                imageView.setOnMouseClicked(e -> openImageViewer(image));
+
+                contentBox.getChildren().add(imageView);
+
+                // Add filename if available
+                if (message.getFileName() != null) {
+                    Label filenameLabel = new Label(message.getFileName());
+                    filenameLabel.setTextFill(Color.GRAY);
+                    filenameLabel.setFont(Font.font("System", FontWeight.NORMAL, 10));
+                    contentBox.getChildren().add(filenameLabel);
+                }
+            } else {
+                Label errorLabel = new Label("Image non disponible");
+                contentBox.getChildren().add(errorLabel);
+            }
+        } catch (Exception e) {
+            Label errorLabel = new Label("Erreur de chargement: " + e.getMessage());
+            contentBox.getChildren().add(errorLabel);
+        }
+    }
+
+    private void addVideoContent(VBox contentBox, Message message) {
+        try {
+            File videoFile = chatService.getMediaFile(message);
+            if (videoFile.exists()) {
+                HBox videoContainer = new HBox();
+                videoContainer.setAlignment(Pos.CENTER);
+                videoContainer.getStyleClass().add("video-preview");
+
+                // Create a thumbnail or play button
+                Button playButton = new Button("▶");
+                playButton.getStyleClass().add("audio-play-button");
+                playButton.setOnAction(e -> openVideoPlayer(videoFile));
+
+                Label videoLabel = new Label(message.getFileName() != null ? message.getFileName() : "Vidéo");
+
+                videoContainer.getChildren().addAll(playButton, videoLabel);
+                contentBox.getChildren().add(videoContainer);
+            } else {
+                Label errorLabel = new Label("Vidéo non disponible");
+                contentBox.getChildren().add(errorLabel);
+            }
+        } catch (Exception e) {
+            Label errorLabel = new Label("Erreur de chargement: " + e.getMessage());
+            contentBox.getChildren().add(errorLabel);
+        }
+    }
+
+    private void addAudioContent(VBox contentBox, Message message) {
+        try {
+            File audioFile = chatService.getMediaFile(message);
+            if (audioFile.exists()) {
+                HBox audioPlayer = new HBox(10);
+                audioPlayer.setAlignment(Pos.CENTER_LEFT);
+                audioPlayer.getStyleClass().add("audio-player");
+
+                Button playButton = new Button("▶");
+                playButton.getStyleClass().add("audio-play-button");
+
+                ProgressBar progressBar = new ProgressBar(0);
+                progressBar.getStyleClass().add("audio-progress");
+                progressBar.setPrefWidth(150);
+
+                Label durationLabel = new Label("00:00");
+
+                // Create the media player
+                Media media = new Media(audioFile.toURI().toString());
+                MediaPlayer mediaPlayer = new MediaPlayer(media);
+
+                // Configure the progress bar and duration label
+                mediaPlayer.currentTimeProperty().addListener((obs, oldVal, newVal) -> {
+                    double progress = newVal.toSeconds() / mediaPlayer.getTotalDuration().toSeconds();
+                    Platform.runLater(() -> {
+                        progressBar.setProgress(progress);
+                        durationLabel.setText(formatDuration(newVal));
+                    });
+                });
+
+                mediaPlayer.setOnEndOfMedia(() -> {
+                    mediaPlayer.stop();
+                    mediaPlayer.seek(javafx.util.Duration.ZERO);
+                    playButton.setText("▶");
+                });
+
+                // Configure the play button
+                playButton.setOnAction(e -> {
+                    if (mediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
+                        mediaPlayer.pause();
+                        playButton.setText("▶");
+                    } else {
+                        mediaPlayer.play();
+                        playButton.setText("⏸");
+                    }
+                });
+
+                audioPlayer.getChildren().addAll(playButton, progressBar, durationLabel);
+                contentBox.getChildren().add(audioPlayer);
+            } else {
+                Label errorLabel = new Label("Audio non disponible");
+                contentBox.getChildren().add(errorLabel);
+            }
+        } catch (Exception e) {
+            Label errorLabel = new Label("Erreur de chargement: " + e.getMessage());
+            contentBox.getChildren().add(errorLabel);
+        }
+    }
+
+    private void addDocumentContent(VBox contentBox, Message message) {
+        try {
+            File documentFile = chatService.getMediaFile(message);
+            if (documentFile.exists()) {
+                HBox documentContainer = new HBox(10);
+                documentContainer.getStyleClass().add("document-preview");
+
+                Label iconLabel = new Label("📄");
+                iconLabel.getStyleClass().add("document-icon");
+
+                VBox documentInfo = new VBox(5);
+
+                Label nameLabel = new Label(message.getFileName() != null ? message.getFileName() : "Document");
+                nameLabel.getStyleClass().add("document-name");
+
+                Label sizeLabel = new Label(formatFileSize(message.getFileSize()));
+                sizeLabel.getStyleClass().add("document-size");
+
+                documentInfo.getChildren().addAll(nameLabel, sizeLabel);
+                documentContainer.getChildren().addAll(iconLabel, documentInfo);
+
+                // Add click handler to open the document
+                documentContainer.setOnMouseClicked(e -> openDocument(documentFile));
+
+                contentBox.getChildren().add(documentContainer);
+            } else {
+                Label errorLabel = new Label("Document non disponible");
+                contentBox.getChildren().add(errorLabel);
+            }
+        } catch (Exception e) {
+            Label errorLabel = new Label("Erreur de chargement: " + e.getMessage());
+            contentBox.getChildren().add(errorLabel);
+        }
+    }
+
+    // Helper method to format file size
+    private String formatFileSize(Long size) {
+        if (size == null) {
+            return "Taille inconnue";
+        }
+
+        if (size < 1024) {
+            return size + " octets";
+        } else if (size < 1024 * 1024) {
+            return String.format("%.1f KB", size / 1024.0);
+        } else if (size < 1024 * 1024 * 1024) {
+            return String.format("%.1f MB", size / (1024.0 * 1024));
+        } else {
+            return String.format("%.1f GB", size / (1024.0 * 1024 * 1024));
+        }
+    }
+
+    // Helper method to format duration
+    private String formatDuration(javafx.util.Duration duration) {
+        int seconds = (int) Math.floor(duration.toSeconds());
+        int minutes = seconds / 60;
+        seconds = seconds % 60;
+        return String.format("%02d:%02d", minutes, seconds);
+    }
+
+    // Open image in a larger viewer
+    private void openImageViewer(Image image) {
+        Stage imageStage = new Stage();
+        imageStage.initModality(Modality.APPLICATION_MODAL);
+        imageStage.setTitle("Visionneuse d'image");
+
+        ImageView imageView = new ImageView(image);
+        imageView.setPreserveRatio(true);
+
+        // Limit size to fit screen
+        imageView.setFitWidth(Math.min(image.getWidth(), 800));
+        imageView.setFitHeight(Math.min(image.getHeight(), 600));
+
+        ScrollPane scrollPane = new ScrollPane(imageView);
+        scrollPane.setPannable(true);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(true);
+
+        Scene scene = new Scene(scrollPane);
+        imageStage.setScene(scene);
+        imageStage.show();
+    }
+
+    // Open video player
+    private void openVideoPlayer(File videoFile) {
+        Stage videoStage = new Stage();
+        videoStage.initModality(Modality.APPLICATION_MODAL);
+        videoStage.setTitle("Lecteur vidéo");
+
+        Media media = new Media(videoFile.toURI().toString());
+        MediaPlayer mediaPlayer = new MediaPlayer(media);
+        MediaView mediaView = new MediaView(mediaPlayer);
+
+        // Set up controls
+        Button playButton = new Button("⏸");
+        playButton.setOnAction(e -> {
+            if (mediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
+                mediaPlayer.pause();
+                playButton.setText("▶");
+            } else {
+                mediaPlayer.play();
+                playButton.setText("⏸");
+            }
+        });
+
+        ProgressBar progressBar = new ProgressBar(0);
+        progressBar.setPrefWidth(300);
+
+        mediaPlayer.currentTimeProperty().addListener((obs, oldVal, newVal) -> {
+            double progress = newVal.toSeconds() / mediaPlayer.getTotalDuration().toSeconds();
+            Platform.runLater(() -> progressBar.setProgress(progress));
+        });
+
+        // Add seek functionality
+        progressBar.setOnMouseClicked(e -> {
+            double percent = e.getX() / progressBar.getWidth();
+            mediaPlayer.seek(mediaPlayer.getTotalDuration().multiply(percent));
+        });
+
+        HBox controls = new HBox(10, playButton, progressBar);
+        controls.setAlignment(Pos.CENTER);
+        controls.setPadding(new Insets(10));
+
+        VBox root = new VBox(10, mediaView, controls);
+        root.setAlignment(Pos.CENTER);
+
+        Scene scene = new Scene(root, 640, 480);
+        videoStage.setScene(scene);
+
+        videoStage.setOnCloseRequest(e -> mediaPlayer.stop());
+
+        videoStage.show();
+        mediaPlayer.play();
+    }
+
+    // Open document with system default application
+    private void openDocument(File documentFile) {
+        try {
+            java.awt.Desktop.getDesktop().open(documentFile);
+        } catch (Exception e) {
+            setStatus("Erreur lors de l'ouverture du document: " + e.getMessage());
         }
     }
 
@@ -372,6 +780,12 @@ public class ChatController {
 
     @FXML
     private void handleSendMessage(final ActionEvent event) {
+        System.out.println("////////::selected Media File ");
+        if (selectedMediaFile != null) {
+            sendMediaMessage();
+            return;
+        }
+
         final String content = messageField.getText().trim();
         if (content.isEmpty()) {
             return;
@@ -402,6 +816,83 @@ public class ChatController {
             setStatus("Message envoyé");
         } catch (final IOException e) {
             setStatus("Erreur lors de l'envoi du message : " + e.getMessage());
+        }
+    }
+    /**
+     * Sends the currently selected media file as a message.
+     */
+    private void sendMediaMessage() {
+        try {
+            // Fix for null selectedMediaType - detect it from the file if null
+            if (selectedMediaType == null && selectedMediaFile != null) {
+                selectedMediaType = fileService.detectMessageType(selectedMediaFile.getName());
+                System.out.println("Auto-detected media type: " + selectedMediaType);
+            }
+            Message message;
+
+            if (selectedContactUser != null) {
+                switch (selectedMediaType) {
+                    case IMAGE:
+                    case VIDEO:
+                    case DOCUMENT:
+                        message = chatService.createDirectMediaMessage(
+                                userEmail, selectedContactUser.getEmail(), selectedMediaFile);
+                        break;
+                    case AUDIO:
+                        message = chatService.createDirectAudioMessage(
+                                userEmail, selectedContactUser.getEmail(), selectedMediaFile);
+                        break;
+                    default:
+                        throw new IllegalStateException("Type de média non pris en charge: " + selectedMediaType);
+                }
+            } else if (selectedGroup != null) {
+                switch (selectedMediaType) {
+                    case IMAGE:
+                    case VIDEO:
+                    case DOCUMENT:
+                        message = chatService.createGroupMediaMessage(
+                                userEmail, selectedGroup.getId(), selectedMediaFile);
+                        break;
+                    case AUDIO:
+                        message = chatService.createGroupAudioMessage(
+                                userEmail, selectedGroup.getId(), selectedMediaFile);
+                        break;
+                    default:
+                        throw new IllegalStateException("Type de média non pris en charge: " + selectedMediaType);
+                }
+            } else {
+                setStatus("Veuillez sélectionner un groupe ou un contact.");
+                return;
+            }
+
+            // Send the message
+            chatService.sendMessage(message);
+
+            // Clear the selected media
+            clearMediaSelection();
+
+            // Add the message to the chat and local repository
+            addMessageToChat(message);
+            localRepo.addLocalMessage(userEmail, message);
+
+            // Refresh the appropriate list view
+            if (message.getGroupId() != null) {
+                groupListView.refresh();
+            } else {
+                contactListView.refresh();
+            }
+
+            String mediaTypeStr = "";
+            switch (selectedMediaType) {
+                case IMAGE: mediaTypeStr = "Image"; break;
+                case VIDEO: mediaTypeStr = "Vidéo"; break;
+                case AUDIO: mediaTypeStr = "Audio"; break;
+                case DOCUMENT: mediaTypeStr = "Document"; break;
+            }
+
+            setStatus(mediaTypeStr + " envoyé(e)");
+        } catch (final IOException e) {
+            setStatus("Erreur lors de l'envoi du média : " + e.getMessage());
         }
     }
 
@@ -443,7 +934,11 @@ public class ChatController {
                         addMessageToChat(message);
                     }
 
-                    setStatus("Nouveau message reçu");
+                    if (message.isTextMessage()) {
+                        setStatus("Nouveau message reçu");
+                    } else {
+                        setStatus("Nouveau média reçu");
+                    }
                 }
 
                 scrollToBottom();
@@ -571,6 +1066,232 @@ public class ChatController {
             stage.centerOnScreen();
         } catch (final IOException e) {
             setStatus("Erreur lors de la déconnexion: " + e.getMessage());
+        }
+    }
+
+    private void openMediaFileChooser(final String description, final String... extensions) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Sélectionner un fichier");
+        fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter(description, extensions));
+
+        File selectedFile = fileChooser.showOpenDialog(mediaButton.getScene().getWindow());
+        if (selectedFile != null) {
+            selectedMediaFile = selectedFile;
+            selectedMediaType = fileService.detectMessageType(selectedFile.getName());
+
+            // Show the attachment preview
+            attachmentNameLabel.setText(selectedFile.getName());
+            attachmentPreviewContainer.setManaged(true);
+            attachmentPreviewContainer.setVisible(true);
+
+            // Clear the message field
+            messageField.clear();
+            messageField.setPromptText("Appuyez sur Envoyer pour envoyer le fichier");
+        }
+    }
+
+    @FXML
+    private void handleRemoveAttachment() {
+        clearMediaSelection();
+    }
+
+    private void clearMediaSelection() {
+        selectedMediaFile = null;
+        selectedMediaType = null;
+        attachmentPreviewContainer.setManaged(false);
+        attachmentPreviewContainer.setVisible(false);
+        messageField.setPromptText("Écrire un message...");
+    }
+
+    @FXML
+    private void handleAudioRecordButtonClick() {
+        if (isRecording) {
+            stopRecording();
+        } else {
+            startRecording();
+        }
+    }
+
+    private void startRecording() {
+        try {
+            // Start recording
+            audioRecorderService.startRecording();
+            isRecording = true;
+
+            // Update UI
+            audioRecordButton.setText("■");
+            audioRecordButton.getStyleClass().add("recording");
+            recordingIndicatorContainer.setManaged(true);
+            recordingIndicatorContainer.setVisible(true);
+
+            // Disable other inputs
+            messageField.setDisable(true);
+            mediaButton.setDisable(true);
+
+            // Start timer
+            recordingSeconds = 0;
+            recordingTimeLabel.setText("00:00");
+            recordingTimer = new Timer();
+            recordingTimer.scheduleAtFixedRate(new TimerTask() {
+                @Override
+                public void run() {
+                    recordingSeconds++;
+                    Platform.runLater(() -> {
+                        int minutes = recordingSeconds / 60;
+                        int seconds = recordingSeconds % 60;
+                        recordingTimeLabel.setText(String.format("%02d:%02d", minutes, seconds));
+                    });
+                }
+            }, 1000, 1000);
+
+            setStatus("Enregistrement audio démarré");
+        } catch (LineUnavailableException e) {
+            setStatus("Erreur lors du démarrage de l'enregistrement: " + e.getMessage());
+        }
+    }
+
+    private void stopRecording() {
+        try {
+            // Stop the timer
+            if (recordingTimer != null) {
+                recordingTimer.cancel();
+                recordingTimer = null;
+            }
+
+            // Stop recording and get the recorded file
+            File audioFile = audioRecorderService.stopRecording();
+            isRecording = false;
+
+            // Update UI
+            audioRecordButton.setText("🎤");
+            audioRecordButton.getStyleClass().remove("recording");
+            recordingIndicatorContainer.setManaged(false);
+            recordingIndicatorContainer.setVisible(false);
+
+            // Re-enable inputs
+            messageField.setDisable(false);
+            mediaButton.setDisable(false);
+
+            // If we have a valid audio file, set it as the selected media
+            if (audioFile != null && audioFile.exists()) {
+                selectedMediaFile = audioFile;
+                selectedMediaType = MessageType.AUDIO;
+
+                // Show the attachment preview
+                attachmentNameLabel.setText("Enregistrement audio (" + formatDuration(recordingSeconds) + ")");
+                attachmentPreviewContainer.setManaged(true);
+                attachmentPreviewContainer.setVisible(true);
+
+                setStatus("Enregistrement audio terminé");
+            } else {
+                setStatus("L'enregistrement audio a échoué");
+            }
+        } catch (IOException e) {
+            setStatus("Erreur lors de l'arrêt de l'enregistrement: " + e.getMessage());
+        }
+    }
+
+    private String formatDuration(int seconds) {
+        int minutes = seconds / 60;
+        seconds = seconds % 60;
+        return String.format("%02d:%02d", minutes, seconds);
+    }
+
+    @FXML
+    private void handleOpenMediaGallery(ActionEvent event) {
+        try {
+            // First, check if we have a selected conversation
+            if (selectedContactUser == null && selectedGroup == null) {
+                setStatus("Veuillez sélectionner un contact ou un groupe pour voir la galerie média");
+                return;
+            }
+
+            // Load all media messages for the current conversation
+            List<Message> mediaMessages;
+            String conversationName;
+            boolean isGroup;
+
+            if (selectedContactUser != null) {
+                // Direct conversation
+                final long myId = userService.getUserByEmail(userEmail).getId();
+                final long contactId = selectedContactUser.getId();
+                mediaMessages = localRepo.loadContactMessages(userEmail, myId, contactId)
+                        .stream()
+                        .filter(Message::isMediaMessage)
+                        .collect(Collectors.toList());
+                conversationName = selectedContactUser.getDisplayNameOrEmail();
+                isGroup = false;
+            } else {
+                // Group conversation
+                mediaMessages = localRepo.loadGroupMessages(userEmail, selectedGroup.getId())
+                        .stream()
+                        .filter(Message::isMediaMessage)
+                        .collect(Collectors.toList());
+                conversationName = selectedGroup.getName();
+                isGroup = true;
+            }
+
+            // Check if there are any media messages
+            if (mediaMessages.isEmpty()) {
+                setStatus("Aucun média trouvé dans cette conversation");
+                return;
+            }
+
+            // Load the media gallery
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/media_gallery.fxml"));
+            Parent root = loader.load();
+
+            // Get the controller and set up the gallery
+            MediaGalleryController galleryController = loader.getController();
+            galleryController.setData(chatService, userService, mediaMessages, conversationName, isGroup);
+
+            // Create and show the gallery
+            Stage galleryStage = new Stage();
+            galleryStage.setTitle("Galerie média - " + conversationName);
+            galleryStage.initModality(Modality.WINDOW_MODAL);
+            galleryStage.initOwner(mediaGalleryButton.getScene().getWindow());
+            galleryStage.setScene(new Scene(root));
+            galleryStage.show();
+
+        } catch (IOException e) {
+            setStatus("Erreur lors de l'ouverture de la galerie média: " + e.getMessage());
+        }
+    }
+    @FXML
+    private void handleMediaButtonClick(final ActionEvent event) {
+        try {
+            // Load the media dialog
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/media_dialog.fxml"));
+            Parent root = loader.load();
+
+            // Get the controller and set up the send handler
+            MediaDialogController dialogController = loader.getController();
+            dialogController.setSendHandler((file, type) -> {
+                // When media is selected in the dialog, handle it here
+                selectedMediaFile = file;
+                selectedMediaType = type;
+
+                // Show the attachment preview
+                attachmentNameLabel.setText(file.getName());
+                attachmentPreviewContainer.setManaged(true);
+                attachmentPreviewContainer.setVisible(true);
+
+                // Clear the message field
+                messageField.clear();
+                messageField.setPromptText("Appuyez sur Envoyer pour envoyer le fichier");
+            });
+
+            // Create and show the dialog
+            Stage dialogStage = new Stage();
+            dialogStage.setTitle("Envoyer un média");
+            dialogStage.initModality(Modality.WINDOW_MODAL);
+            dialogStage.initOwner(mediaButton.getScene().getWindow());
+            dialogStage.setScene(new Scene(root));
+            dialogStage.showAndWait();
+
+        } catch (IOException e) {
+            setStatus("Erreur lors de l'ouverture du dialogue média: " + e.getMessage());
         }
     }
 }

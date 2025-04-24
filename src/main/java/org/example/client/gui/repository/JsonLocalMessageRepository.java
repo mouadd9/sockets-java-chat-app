@@ -81,6 +81,7 @@ public class JsonLocalMessageRepository {
 
     /**
      * Ajoute un nouveau message dans l'historique local pour l'utilisateur.
+     * message envoyé et recue
      */
     public void addLocalMessage(final String userEmail, final Message message) throws IOException {
         final List<Message> messages = loadLocalMessages(userEmail);
