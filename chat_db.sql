@@ -53,3 +53,21 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (receiver_user_id) REFERENCES users(id),
     FOREIGN KEY (group_id) REFERENCES `groups`(id)
 ) ENGINE=InnoDB;
+
+
+-- Add the new columns to the messages table
+ALTER TABLE messages
+    ADD COLUMN message_type VARCHAR(20) NOT NULL DEFAULT 'TEXT',
+    ADD COLUMN file_name VARCHAR(255),
+    ADD COLUMN file_size BIGINT,
+    ADD COLUMN mime_type VARCHAR(255);
+
+-- Create a directory to store media files if it doesn't exist
+-- Note: This SQL comment is just to remind you to create this directory on the server.
+-- You'll need to create the media files directory in your application code:
+-- e.g., mkdir -p /path/to/your/application/media_files
+
+-- Note: For a production environment, you might want to consider:
+-- 1. Using a dedicated file storage service
+-- 2. Implementing file deduplication
+-- 3. Setting up proper backup systems for media

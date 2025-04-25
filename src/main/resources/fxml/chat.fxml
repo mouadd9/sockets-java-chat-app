@@ -73,6 +73,36 @@
             </center>
             <bottom>
                 <VBox spacing="5">
+                    <!-- Media attachment indicator -->
+                    <HBox fx:id="attachmentPreviewContainer" spacing="5" alignment="CENTER_LEFT" styleClass="attachment-preview" managed="false" visible="false">
+                        <Label fx:id="attachmentNameLabel" styleClass="attachment-name"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button text="×" onAction="#handleRemoveAttachment" styleClass="remove-attachment-button"/>
+                    </HBox>
+
+                    <!-- Recording indicator -->
+                    <HBox fx:id="recordingIndicatorContainer" spacing="5" alignment="CENTER_LEFT" styleClass="recording-indicator" managed="false" visible="false">
+                        <Label text="⚫ Enregistrement en cours..." styleClass="recording-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="recordingTimeLabel" text="00:00" styleClass="recording-time"/>
+                    </HBox>
+
+                    <!-- Message input area -->
+                    <HBox spacing="5" alignment="CENTER_LEFT" style="-fx-padding: 10px;">
+                        <!-- Media attachment button -->
+                        <Button fx:id="mediaButton" text="Media" styleClass="media-button" onAction="#handleMediaButtonClick"/>
+
+                        <!-- Audio recording button -->
+                        <Button fx:id="audioRecordButton" text="Audio" styleClass="record-button" onAction="#handleAudioRecordButtonClick"/>
+
+                        <!-- Message text field -->
+                        <TextField fx:id="messageField" promptText="Écrire un message..." HBox.hgrow="ALWAYS"/>
+
+                        <!-- Send button -->
+                        <Button text="Envoyer" styleClass="send-button" onAction="#handleSendMessage"/>
+                    </HBox>
+                </VBox>
+                <VBox spacing="5">
                     <HBox spacing="5" alignment="CENTER_LEFT" style="-fx-padding: 10px;">
                         <TextField fx:id="messageField" promptText="Écrire un message..." HBox.hgrow="ALWAYS"/>
                         <Button text="Envoyer" styleClass="send-button" onAction="#handleSendMessage"/>
