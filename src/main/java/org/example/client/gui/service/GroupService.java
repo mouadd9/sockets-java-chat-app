@@ -40,4 +40,18 @@ public class GroupService {
     public List<Group> getGroupsForUser(final long userId) throws IOException {
         return groupDAO.getGroupsForUser(userId);
     }
+
+    /**
+     * Récupère les identifiants des membres d'un groupe
+     */
+    public List<Long> getMembersForGroup(final long groupId) {
+        return groupDAO.getMembersForGroup(groupId);
+    }
+
+    /**
+     * Supprime un membre d'un groupe
+     */
+    public boolean removeMemberFromGroup(final long groupId, final long userId) {
+        return groupMembershipDAO.removeGroupMembership(userId, groupId);
+    }
 }

@@ -58,14 +58,25 @@
                 </placeholder>
             </ListView>
             <HBox spacing="5">
-                <TextField fx:id="memberEmailField" promptText="Ajouter un membre" HBox.hgrow="ALWAYS"/>
+                <TextField fx:id="memberEmailField" promptText="Email du membre" HBox.hgrow="ALWAYS"/>
                 <Button text="+" onAction="#handleAddMemberToGroup"/>
+                <Button text="-" onAction="#handleRemoveMemberFromGroup"/>
             </HBox>
         </VBox>
     </left>
     
     <center>
         <BorderPane>
+            <top>
+                <VBox spacing="2" style="-fx-background-color: #f5f5f5;">
+                    <HBox alignment="CENTER_LEFT" style="-fx-padding: 5px;">
+                        <Label fx:id="statusLabel" styleClass="status-label"/>
+                    </HBox>
+                    <HBox alignment="CENTER_LEFT" style="-fx-padding: 0 5px 5px 5px;">
+                        <Label fx:id="groupMembersLabel" styleClass="group-members-label"/>
+                    </HBox>
+                </VBox>
+            </top>
             <center>
                 <ScrollPane fx:id="chatScrollPane" fitToWidth="true">
                     <VBox fx:id="chatHistoryContainer" spacing="5" styleClass="chat-history"/>
@@ -90,11 +101,6 @@
                     </VBox>
                 </VBox>
             </bottom>
-            <top>
-                <HBox alignment="CENTER_LEFT" style="-fx-background-color: #f5f5f5; -fx-padding: 10px;">
-                    <Label fx:id="statusLabel" styleClass="status-label"/>
-                </HBox>
-            </top>
         </BorderPane>
     </center>
 </BorderPane>

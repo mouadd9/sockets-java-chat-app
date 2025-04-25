@@ -3,6 +3,7 @@ package org.example.client.gui.controllers;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -54,6 +55,7 @@ public class ChatController {
     @FXML private VBox chatHistoryContainer;
     @FXML private ScrollPane chatScrollPane;
     @FXML private Label statusLabel;
+    @FXML private Label groupMembersLabel;
     
     // Éléments d'interface pour les appels
     @FXML private Button callButton;
@@ -137,6 +139,10 @@ public class ChatController {
                 selectedContactUser = sel;
                 selectedGroup = null;
                 loadContactConversation(selectedContactUser);
+                
+                // Effacer l'affichage des membres pour une conversation individuelle
+                groupMembersLabel.setText("");
+                
                 setStatus("Conversation chargée avec " + selectedContactUser.getDisplayNameOrEmail());
                 
                 // Activer le bouton d'appel uniquement pour les conversations de contact (pas de groupe)
@@ -150,6 +156,10 @@ public class ChatController {
                 selectedGroup = sel;
                 selectedContactUser = null;
                 loadGroupConversation(sel);
+                
+                // Les membres seront affichés par la méthode loadGroupConversation
+                // qui appelle displayGroupMembers
+                
                 setStatus("Conversation de groupe chargée : " + sel.getName());
                 
                 // Désactiver le bouton d'appel pour les conversations de groupe
@@ -198,7 +208,7 @@ public class ChatController {
      * Gère une demande d'appel (bouton Appeler).
      */
     @FXML
-    private void handleCallRequest(ActionEvent event) {
+    private void handleCallRequest(final ActionEvent event) {
         if (selectedContactUser == null) {
             setStatus("Veuillez sélectionner un contact pour appeler");
             return;
@@ -232,7 +242,7 @@ public class ChatController {
      * Gère l'acceptation d'un appel.
      */
     @FXML
-    private void handleAcceptCall(ActionEvent event) {
+    private void handleAcceptCall(final ActionEvent event) {
         try {
             final CallSession currentSession = callManager.getCurrentSession();
             if (currentSession == null) {
@@ -268,7 +278,7 @@ public class ChatController {
      * Gère le rejet d'un appel.
      */
     @FXML
-    private void handleRejectCall(ActionEvent event) {
+    private void handleRejectCall(final ActionEvent event) {
         try {
             final CallSession currentSession = callManager.getCurrentSession();
             if (currentSession == null) {
@@ -298,7 +308,7 @@ public class ChatController {
      * Gère la fin d'un appel en cours.
      */
     @FXML
-    private void handleEndCall(ActionEvent event) {
+    private void handleEndCall(final ActionEvent event) {
         try {
             final CallSession currentSession = callManager.getCurrentSession();
             if (currentSession == null) {
@@ -333,7 +343,7 @@ public class ChatController {
      * Gère l'activation/désactivation du microphone.
      */
     @FXML
-    private void handleToggleMute(ActionEvent event) {
+    private void handleToggleMute(final ActionEvent event) {
         final boolean muted = muteButton.isSelected();
         callManager.setMicrophoneMuted(muted);
         muteButton.setText(muted ? "Activer micro" : "Muet");
@@ -734,17 +744,25 @@ public class ChatController {
 
     private void loadContactConversation(final User contactUser) {
         Platform.runLater(() -> {
-            chatHistoryContainer.getChildren().clear();
-            try {
-                final long myId = userService.getUserByEmail(userEmail).getId();
-                final long contactId = contactUser.getId();
-                final List<Message> contactMessages = localRepo.loadContactMessages(userEmail, myId, contactId);
-                contactMessages.forEach(this::addMessageToChat);
-                scrollToBottom();
-            } catch (final IOException e) {
-                setStatus("Erreur lors du chargement de la conversation avec " + contactUser.getDisplayNameOrEmail()
-                        + " : "
-                        + e.getMessage());
+            synchronized (loadLock) {
+                chatHistoryContainer.getChildren().clear();
+                try {
+                    // Effacer l'affichage des membres car on est dans une conversation individuelle
+                    groupMembersLabel.setText("");
+                    
+                    final long myId = userService.getUserByEmail(userEmail).getId();
+                    final long contactId = contactUser.getId();
+                    final List<Message> contactMessages = localRepo.loadContactMessages(userEmail, myId, contactId);
+                    contactMessages.forEach(this::addMessageToChat);
+                    scrollToBottom();
+                    
+                    // Activer le bouton d'appel pour les conversations individuelles
+                    callButton.setDisable(false);
+                } catch (final IOException e) {
+                    setStatus("Erreur lors du chargement de la conversation avec " + contactUser.getDisplayNameOrEmail()
+                            + " : "
+                            + e.getMessage());
+                }
             }
         });
     }
@@ -754,6 +772,8 @@ public class ChatController {
             synchronized (loadLock) {
                 chatHistoryContainer.getChildren().clear();
                 try {
+                    // Afficher les membres du groupe dans l'en-tête
+                    displayGroupMembers(group);
                     final List<Message> groupMessages = localRepo.loadGroupMessages(userEmail, group.getId());
                     groupMessages.forEach(this::addMessageToChat);
                     scrollToBottom();
@@ -762,6 +782,37 @@ public class ChatController {
                 }
             }
         });
+    }
+
+    /**
+     * Affiche les membres du groupe dans l'en-tête de la conversation
+     */
+    private void displayGroupMembers(final Group group) {
+        if (group == null) {
+            groupMembersLabel.setText("");
+            return;
+        }
+        try {
+            // Récupérer les IDs des membres du groupe
+            final List<Long> memberIds = groupService.getMembersForGroup(group.getId());
+            // Construire la liste des noms des membres
+            final List<String> memberNames = new ArrayList<>();
+            for (final Long memberId : memberIds) {
+                try {
+                    final User user = userService.getUserById(memberId);
+                    final String displayName = user.getDisplayNameOrEmail().split("@")[0];
+                    memberNames.add(displayName);
+                } catch (final IOException e) {
+                    memberNames.add("Inconnu");
+                }
+            }
+            // Joindre les noms avec des virgules
+            final String membersText = "Membres : " + String.join(", ", memberNames);
+            groupMembersLabel.setText(membersText);
+        } catch (final Exception e) {
+            groupMembersLabel.setText("Erreur lors du chargement des membres");
+            setStatus("Erreur lors du chargement des membres : " + e.getMessage());
+        }
     }
 
     @FXML
@@ -944,6 +995,50 @@ public class ChatController {
             }
         } catch (final IOException e) {
             setStatus("Erreur lors de l'ajout du membre : " + e.getMessage());
+        }
+    }
+
+    @FXML
+    private void handleRemoveMemberFromGroup(final ActionEvent event) {
+        final Group selectedGroup = groupListView.getSelectionModel().getSelectedItem();
+        if (selectedGroup == null) {
+            setStatus("Veuillez sélectionner un groupe");
+            return;
+        }
+        
+        final String memberEmail = memberEmailField.getText().trim();
+        if (memberEmail.isEmpty()) {
+            setStatus("Veuillez entrer l'email du membre à supprimer");
+            return;
+        }
+        
+        try {
+            final User memberUser = userService.getUserByEmail(memberEmail);
+            if (memberUser == null) {
+                setStatus("Utilisateur non trouvé: " + memberEmail);
+                return;
+            }
+            
+            // Vérifier que le membre n'est pas le propriétaire du groupe
+            if (memberUser.getId() == selectedGroup.getOwnerUserId()) {
+                setStatus("Impossible de supprimer le propriétaire du groupe");
+                return;
+            }
+            
+            final boolean removed = groupService.removeMemberFromGroup(selectedGroup.getId(), memberUser.getId());
+            if (removed) {
+                setStatus("Membre supprimé avec succès");
+                memberEmailField.clear();
+                
+                // Rafraîchir l'affichage des membres si le groupe est sélectionné
+                if (selectedGroup.equals(this.selectedGroup)) {
+                    displayGroupMembers(selectedGroup);
+                }
+            } else {
+                setStatus("La suppression du membre a échoué ou l'utilisateur n'était pas membre du groupe");
+            }
+        } catch (final IOException e) {
+            setStatus("Erreur lors de la suppression du membre: " + e.getMessage());
         }
     }
 

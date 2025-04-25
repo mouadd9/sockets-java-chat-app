@@ -43,4 +43,18 @@ public class GroupMembershipDAO {
         }
         return null;
     }
+
+    public boolean removeGroupMembership(final long userId, final long groupId) {
+        final String sql = "DELETE FROM group_memberships WHERE user_id = ? AND group_id = ?";
+        try (Connection conn = JDBCUtil.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, userId);
+            stmt.setLong(2, groupId);
+            final int affectedRows = stmt.executeUpdate();
+            return affectedRows > 0;
+        } catch (final SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
 }

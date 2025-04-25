@@ -16,7 +16,6 @@ import org.example.shared.dao.UserDAO;
 import org.example.shared.dto.Credentials;
 import org.example.shared.model.CallSession;
 import org.example.shared.model.CallSignal;
-import org.example.shared.model.Group;
 import org.example.shared.model.Message;
 import org.example.shared.model.User;
 
@@ -24,7 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 public class ChatService {
-    private static final String SERVER_ADDRESS = "192.168.190.250";
+    private static final String SERVER_ADDRESS = "localhost";
     private static final int SERVER_PORT = 5000;
 
     private Socket socket;
@@ -57,7 +56,7 @@ public class ChatService {
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
             // Envoyer la commande de connexion pour différencier des requêtes d'inscription
-            //out.println("LOGIN");
+            out.println("LOGIN");
             
             // Envoyer les identifiants
             final String jsonCredentials = objectMapper.writeValueAsString(credentials);
