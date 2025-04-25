@@ -1,0 +1,13 @@
+[ {
+  "id" : 0,
+  "senderUserId" : 7,
+  "receiverUserId" : 8,
+  "groupId" : null,
+  "content" : "hi",
+  "timestamp" : [ 2025, 4, 25, 5, 35, 45, 365773000 ],
+  "status" : "DELIVERED",
+  "type" : "TEXT",
+  "fileName" : null,
+  "fileSize" : null,
+  "mimeType" : null
+} ]

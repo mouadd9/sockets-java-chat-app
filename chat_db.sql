@@ -71,3 +71,6 @@ ALTER TABLE messages
 -- 1. Using a dedicated file storage service
 -- 2. Implementing file deduplication
 -- 3. Setting up proper backup systems for media
+
+ALTER TABLE `groups` ADD COLUMN profile_picture_url VARCHAR(255) DEFAULT '/images/default_group.png';
+ALTER TABLE messages ADD COLUMN original_message_id BIGINT;

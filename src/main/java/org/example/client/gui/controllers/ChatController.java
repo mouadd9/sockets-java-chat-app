@@ -103,23 +103,24 @@ public class ChatController {
     @FXML
     private Button mediaGalleryButton;
 
-    @FXML private Label userEmailLabel;
-    @FXML private ListView<User> contactListView;
-    @FXML private ListView<Group> groupListView;
-    @FXML private TextField newContactField, messageField, groupNameField, memberEmailField;
-    @FXML private VBox chatHistoryContainer;
-    @FXML private ScrollPane chatScrollPane;
-    @FXML private Label statusLabel;
-    @FXML private Label groupMembersLabel;
-    
+    @FXML
+    private Label groupMembersLabel;
+
     // Éléments d'interface pour les appels
-    @FXML private Button callButton;
-    @FXML private VBox callControlsBox;
-    @FXML private Label callStatusLabel;
-    @FXML private Button acceptCallButton;
-    @FXML private Button rejectCallButton;
-    @FXML private Button endCallButton;
-    @FXML private ToggleButton muteButton;
+    @FXML
+    private Button callButton;
+    @FXML
+    private VBox callControlsBox;
+    @FXML
+    private Label callStatusLabel;
+    @FXML
+    private Button acceptCallButton;
+    @FXML
+    private Button rejectCallButton;
+    @FXML
+    private Button endCallButton;
+    @FXML
+    private ToggleButton muteButton;
 
     private ChatService chatService;
     private String userEmail;
@@ -216,13 +217,14 @@ public class ChatController {
                 selectedContactUser = sel;
                 selectedGroup = null;
                 loadContactConversation(selectedContactUser);
-                
+
                 // Effacer l'affichage des membres pour une conversation individuelle
                 groupMembersLabel.setText("");
-                
+
                 setStatus("Conversation chargée avec " + selectedContactUser.getDisplayNameOrEmail());
 
-                // Activer le bouton d'appel uniquement pour les conversations de contact (pas de groupe)
+                // Activer le bouton d'appel uniquement pour les conversations de contact (pas
+                // de groupe)
                 callButton.setDisable(false);
             }
         });
@@ -233,10 +235,10 @@ public class ChatController {
                 selectedGroup = sel;
                 selectedContactUser = null;
                 loadGroupConversation(sel);
-                
+
                 // Les membres seront affichés par la méthode loadGroupConversation
                 // qui appelle displayGroupMembers
-                
+
                 setStatus("Conversation de groupe chargée : " + sel.getName());
 
                 // Désactiver le bouton d'appel pour les conversations de groupe
@@ -270,7 +272,8 @@ public class ChatController {
         // Check if audio recording is supported
         if (!audioRecorderService.isAudioRecordingSupported()) {
             audioRecordButton.setDisable(true);
-            audioRecordButton.setTooltip(new javafx.scene.control.Tooltip("L'enregistrement audio n'est pas pris en charge sur ce système"));
+            audioRecordButton.setTooltip(
+                    new javafx.scene.control.Tooltip("L'enregistrement audio n'est pas pris en charge sur ce système"));
         }
     }
 
@@ -298,7 +301,7 @@ public class ChatController {
         chatService.setCallSignalConsumer(this::handleCallSignal);
         loadContacts();
         loadGroups();
-        
+
         // Démarrer le rafraîchissement périodique des statuts
         startContactStatusUpdater();
     }
@@ -598,7 +601,7 @@ public class ChatController {
                     callSession,
                     caller,
                     null, // L'adresse IP sera définie lors de l'acceptation
-                    0,    // Le port sera défini lors de l'acceptation
+                    0, // Le port sera défini lors de l'acceptation
                     () -> {
                         // Callback pour l'acceptation
                         showCallUI(true);
@@ -624,7 +627,8 @@ public class ChatController {
     /**
      * Affiche l'interface d'appel.
      *
-     * @param incoming true si c'est un appel entrant, false si c'est un appel sortant
+     * @param incoming true si c'est un appel entrant, false si c'est un appel
+     *                 sortant
      */
     private void showCallUI(final boolean incoming) {
         callControlsBox.setVisible(true);
@@ -836,7 +840,8 @@ public class ChatController {
                 final Label contentLabel = new Label(message.getContent());
                 contentLabel.setWrapText(true);
                 contentLabel.getStyleClass().add("message-text");
-                contentLabel.setMaxWidth(chatHistoryContainer.getWidth() * 0.6); // Pour laisser de la place à l'horodatage
+                contentLabel.setMaxWidth(chatHistoryContainer.getWidth() * 0.6); // Pour laisser de la place à
+                                                                                 // l'horodatage
 
                 // Horodatage
                 final Label timeLabel = new Label(message.getTimestamp().format(TIME_FMT));
@@ -1218,13 +1223,13 @@ public class ChatController {
                 try {
                     // Effacer l'affichage des membres car on est dans une conversation individuelle
                     groupMembersLabel.setText("");
-                    
+
                     final long myId = userService.getUserByEmail(userEmail).getId();
                     final long contactId = contactUser.getId();
                     final List<Message> contactMessages = localRepo.loadContactMessages(userEmail, myId, contactId);
                     contactMessages.forEach(this::addMessageToChat);
                     scrollToBottom();
-                    
+
                     // Activer le bouton d'appel pour les conversations individuelles
                     callButton.setDisable(false);
                 } catch (final IOException e) {
@@ -1324,6 +1329,7 @@ public class ChatController {
             setStatus("Erreur lors de l'envoi du message : " + e.getMessage());
         }
     }
+
     /**
      * Sends the currently selected media file as a message.
      */
@@ -1352,10 +1358,12 @@ public class ChatController {
                     case IMAGE:
                     case VIDEO:
                     case DOCUMENT:
-                        message = chatService.createDirectMediaMessage(userEmail, selectedContactUser.getEmail(), selectedMediaFile);
+                        message = chatService.createDirectMediaMessage(userEmail, selectedContactUser.getEmail(),
+                                selectedMediaFile);
                         break;
                     case AUDIO:
-                        message = chatService.createDirectAudioMessage(userEmail, selectedContactUser.getEmail(), selectedMediaFile);
+                        message = chatService.createDirectAudioMessage(userEmail, selectedContactUser.getEmail(),
+                                selectedMediaFile);
                         break;
                     default:
                         throw new IllegalStateException("Unsupported media type: " + selectedMediaType);
@@ -1365,10 +1373,12 @@ public class ChatController {
                     case IMAGE:
                     case VIDEO:
                     case DOCUMENT:
-                        message = chatService.createGroupMediaMessage(userEmail, selectedGroup.getId(), selectedMediaFile);
+                        message = chatService.createGroupMediaMessage(userEmail, selectedGroup.getId(),
+                                selectedMediaFile);
                         break;
                     case AUDIO:
-                        message = chatService.createGroupAudioMessage(userEmail, selectedGroup.getId(), selectedMediaFile);
+                        message = chatService.createGroupAudioMessage(userEmail, selectedGroup.getId(),
+                                selectedMediaFile);
                         break;
                     default:
                         throw new IllegalStateException("Unsupported media type: " + selectedMediaType);
@@ -1570,31 +1580,31 @@ public class ChatController {
             setStatus("Veuillez sélectionner un groupe");
             return;
         }
-        
+
         final String memberEmail = memberEmailField.getText().trim();
         if (memberEmail.isEmpty()) {
             setStatus("Veuillez entrer l'email du membre à supprimer");
             return;
         }
-        
+
         try {
             final User memberUser = userService.getUserByEmail(memberEmail);
             if (memberUser == null) {
                 setStatus("Utilisateur non trouvé: " + memberEmail);
                 return;
             }
-            
+
             // Vérifier que le membre n'est pas le propriétaire du groupe
             if (memberUser.getId() == selectedGroup.getOwnerUserId()) {
                 setStatus("Impossible de supprimer le propriétaire du groupe");
                 return;
             }
-            
+
             final boolean removed = groupService.removeMemberFromGroup(selectedGroup.getId(), memberUser.getId());
             if (removed) {
                 setStatus("Membre supprimé avec succès");
                 memberEmailField.clear();
-                
+
                 // Rafraîchir l'affichage des membres si le groupe est sélectionné
                 if (selectedGroup.equals(this.selectedGroup)) {
                     displayGroupMembers(selectedGroup);
@@ -1817,6 +1827,7 @@ public class ChatController {
             setStatus("Erreur lors de l'ouverture de la galerie média: " + e.getMessage());
         }
     }
+
     @FXML
     private void handleMediaButtonClick(final ActionEvent event) {
         try {
@@ -1831,8 +1842,8 @@ public class ChatController {
             MediaDialogController dialogController = loader.getController();
             System.out.println("setting up send handler ....");
             System.out.println("we pass a function to send handler, this function takes in a file and a type");
-            System.out.println("when the user selects a file and a type, and clicks send, this function will be called, it sets the selected media file and type in the chat controller");
-
+            System.out.println(
+                    "when the user selects a file and a type, and clicks send, this function will be called, it sets the selected media file and type in the chat controller");
 
             dialogController.setSendHandler((file, type) -> {
                 // When media is selected in the dialog, handle it here
@@ -1862,7 +1873,6 @@ public class ChatController {
             setStatus("Erreur lors de l'ouverture du dialogue média: " + e.getMessage());
         }
     }
-}
 
     private void startContactStatusUpdater() {
         final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();

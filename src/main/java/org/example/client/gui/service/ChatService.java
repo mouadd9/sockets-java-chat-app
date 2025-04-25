@@ -22,7 +22,6 @@ import org.example.shared.model.enums.MessageType;
 
 public class ChatService {
     private static final String SERVER_ADDRESS = "localhost";
-    private static final String SERVER_ADDRESS = "localhost";
     private static final int SERVER_PORT = 5000;
 
     private Socket socket;
@@ -61,8 +60,6 @@ public class ChatService {
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
             // Envoyer la commande de connexion pour différencier des requêtes d'inscription
-            out.println("LOGIN");
-
             out.println("LOGIN");
 
             // Envoyer les identifiants
@@ -364,8 +361,6 @@ public class ChatService {
         return CallSignal.createCallRequest(
                 callSession.getSessionId(),
                 caller.getId(),
-                callSession.getSessionId(),
-                caller.getId(),
                 receiver.getId());
     }
 
@@ -392,10 +387,6 @@ public class ChatService {
                 receiver.getId(),
                 callerUserId,
                 localIp,
-                sessionId,
-                receiver.getId(),
-                callerUserId,
-                localIp,
                 localPort);
     }
 
@@ -415,8 +406,6 @@ public class ChatService {
 
 
         return CallSignal.createCallReject(
-                sessionId,
-                receiver.getId(),
                 sessionId,
                 receiver.getId(),
                 callerUserId);
