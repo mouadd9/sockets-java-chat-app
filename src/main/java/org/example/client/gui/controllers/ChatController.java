@@ -821,61 +821,63 @@ public class ChatController {
     /**
      * Sends the currently selected media file as a message.
      */
+    // Java
     private void sendMediaMessage() {
         try {
-            // Fix for null selectedMediaType - detect it from the file if null
-            if (selectedMediaType == null && selectedMediaFile != null) {
+            if (selectedMediaFile == null) {
+                setStatus("No media file selected.");
+                return;
+            }
+            // Auto-detect the media type if it is null
+            if (selectedMediaType == null) {
                 selectedMediaType = fileService.detectMessageType(selectedMediaFile.getName());
                 System.out.println("Auto-detected media type: " + selectedMediaType);
             }
-            Message message;
+            // If the type is still null after detection, abort the sending process
+            if (selectedMediaType == null) {
+                setStatus("Unsupported media type for file: " + selectedMediaFile.getName());
+                clearMediaSelection();
+                return;
+            }
 
+            Message message;
             if (selectedContactUser != null) {
                 switch (selectedMediaType) {
                     case IMAGE:
                     case VIDEO:
                     case DOCUMENT:
-                        message = chatService.createDirectMediaMessage(
-                                userEmail, selectedContactUser.getEmail(), selectedMediaFile);
+                        message = chatService.createDirectMediaMessage(userEmail, selectedContactUser.getEmail(), selectedMediaFile);
                         break;
                     case AUDIO:
-                        message = chatService.createDirectAudioMessage(
-                                userEmail, selectedContactUser.getEmail(), selectedMediaFile);
+                        message = chatService.createDirectAudioMessage(userEmail, selectedContactUser.getEmail(), selectedMediaFile);
                         break;
                     default:
-                        throw new IllegalStateException("Type de média non pris en charge: " + selectedMediaType);
+                        throw new IllegalStateException("Unsupported media type: " + selectedMediaType);
                 }
             } else if (selectedGroup != null) {
                 switch (selectedMediaType) {
                     case IMAGE:
                     case VIDEO:
                     case DOCUMENT:
-                        message = chatService.createGroupMediaMessage(
-                                userEmail, selectedGroup.getId(), selectedMediaFile);
+                        message = chatService.createGroupMediaMessage(userEmail, selectedGroup.getId(), selectedMediaFile);
                         break;
                     case AUDIO:
-                        message = chatService.createGroupAudioMessage(
-                                userEmail, selectedGroup.getId(), selectedMediaFile);
+                        message = chatService.createGroupAudioMessage(userEmail, selectedGroup.getId(), selectedMediaFile);
                         break;
                     default:
-                        throw new IllegalStateException("Type de média non pris en charge: " + selectedMediaType);
+                        throw new IllegalStateException("Unsupported media type: " + selectedMediaType);
                 }
             } else {
-                setStatus("Veuillez sélectionner un groupe ou un contact.");
+                setStatus("Please select a contact or group.");
                 return;
             }
 
-            // Send the message
             chatService.sendMessage(message);
 
-            // Clear the selected media
             clearMediaSelection();
-
-            // Add the message to the chat and local repository
             addMessageToChat(message);
             localRepo.addLocalMessage(userEmail, message);
 
-            // Refresh the appropriate list view
             if (message.getGroupId() != null) {
                 groupListView.refresh();
             } else {
@@ -884,15 +886,22 @@ public class ChatController {
 
             String mediaTypeStr = "";
             switch (selectedMediaType) {
-                case IMAGE: mediaTypeStr = "Image"; break;
-                case VIDEO: mediaTypeStr = "Vidéo"; break;
-                case AUDIO: mediaTypeStr = "Audio"; break;
-                case DOCUMENT: mediaTypeStr = "Document"; break;
+                case IMAGE:
+                    mediaTypeStr = "Image";
+                    break;
+                case VIDEO:
+                    mediaTypeStr = "Video";
+                    break;
+                case AUDIO:
+                    mediaTypeStr = "Audio";
+                    break;
+                case DOCUMENT:
+                    mediaTypeStr = "Document";
+                    break;
             }
-
-            setStatus(mediaTypeStr + " envoyé(e)");
-        } catch (final IOException e) {
-            setStatus("Erreur lors de l'envoi du média : " + e.getMessage());
+            setStatus(mediaTypeStr + " sent");
+        } catch (IOException e) {
+            setStatus("Error sending media: " + e.getMessage());
         }
     }
 
@@ -1261,12 +1270,20 @@ public class ChatController {
     @FXML
     private void handleMediaButtonClick(final ActionEvent event) {
         try {
+
+            System.out.println("loading Media Dialog View ....");
             // Load the media dialog
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/media_dialog.fxml"));
             Parent root = loader.load();
 
+            System.out.println("loading Media Dialog Controller ....");
             // Get the controller and set up the send handler
             MediaDialogController dialogController = loader.getController();
+            System.out.println("setting up send handler ....");
+            System.out.println("we pass a function to send handler, this function takes in a file and a type");
+            System.out.println("when the user selects a file and a type, and clicks send, this function will be called, it sets the selected media file and type in the chat controller");
+
+
             dialogController.setSendHandler((file, type) -> {
                 // When media is selected in the dialog, handle it here
                 selectedMediaFile = file;
@@ -1280,6 +1297,7 @@ public class ChatController {
                 // Clear the message field
                 messageField.clear();
                 messageField.setPromptText("Appuyez sur Envoyer pour envoyer le fichier");
+                this.sendMediaMessage();
             });
 
             // Create and show the dialog

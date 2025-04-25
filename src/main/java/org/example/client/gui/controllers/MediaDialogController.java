@@ -354,8 +354,8 @@ public class MediaDialogController {
     private void handleSend(ActionEvent event) {
         if (selectedFile != null && sendHandler != null) {
             sendHandler.onMediaSelected(selectedFile, selectedType);
-            closeDialog();
         }
+        closeDialog(); // Ensures the dialog is closed regardless
     }
 
     @FXML
