@@ -22,7 +22,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.example.shared.model.enums.MessageType;
 
 public class ChatService {
-    private static final String SERVER_ADDRESS = "192.168.190.250";
+    private static final String SERVER_ADDRESS = "localhost";
     private static final int SERVER_PORT = 5000;
 
     private Socket socket;
