@@ -50,26 +50,26 @@ public class MessageBroker {
     }
 
     public void sendMessage(final Message message) {
-        
         if (message.isGroupMessage()) {
             final List<Long> groupMemberIds = groupDAO.getMembersForGroup(message.getGroupId());
             for (final Long memberId : groupMemberIds) {
                 // Ignorer l'expéditeur
-                if (memberId != message.getSenderUserId()) {
+                if (!memberId.equals(message.getSenderUserId())) {
                     final MessageQueue queue = getOrCreateQueue(memberId);
-                    if (queue != null ) {
-                        message.setStatus(MessageStatus.DELIVERED);
-                        queue.tryDeliver(message);
+                    // Créer une copie du message pour ce destinataire
+                    Message messageForRecipient = Message.copyForReceiver(message, memberId);
+                    // Essayer de délivrer et, si ça échoue, persister le message
+                    if (!queue.tryDeliver(messageForRecipient)) {
+                        persistMessage(messageForRecipient);
                     } else {
-                        persistMessage(message);
+                        messageForRecipient.setStatus(MessageStatus.DELIVERED);
                     }
                 }
             }
         } else {
             final MessageQueue queue = userQueues.get(message.getReceiverUserId());
-            if (queue != null) {
+            if (queue != null && queue.tryDeliver(message)) {
                 message.setStatus(MessageStatus.DELIVERED);
-                queue.tryDeliver(message);
             } else {
                 persistMessage(message);
             }
@@ -91,18 +91,18 @@ public class MessageBroker {
                     // Transmettre la demande d'appel au destinataire
                     deliverCallSignal(signal.getReceiverUserId(), signal);
                     break;
-                    
+
                 case CALL_ACCEPT:
                     // Enregistrer le point de terminaison du destinataire dans le serveur UDP
                     UdpCallServer.getInstance().registerEndpoint(
-                            signal.getSessionId(), 
-                            false, 
-                            java.net.InetAddress.getByName(signal.getIpAddress()), 
+                            signal.getSessionId(),
+                            false,
+                            java.net.InetAddress.getByName(signal.getIpAddress()),
                             signal.getPort());
                     // Transmettre l'acceptation à l'appelant
                     deliverCallSignal(signal.getReceiverUserId(), signal);
                     break;
-                    
+
                 case CALL_REJECT:
                 case CALL_BUSY:
                     // Supprimer la session d'appel du serveur UDP
@@ -110,7 +110,7 @@ public class MessageBroker {
                     // Transmettre le rejet à l'appelant
                     deliverCallSignal(signal.getReceiverUserId(), signal);
                     break;
-                    
+
                 case CALL_END:
                     // Supprimer la session d'appel du serveur UDP
                     UdpCallServer.getInstance().removeSession(signal.getSessionId());
@@ -122,7 +122,7 @@ public class MessageBroker {
             System.err.println("Erreur lors du routage du signal d'appel: " + e.getMessage());
         }
     }
-    
+
     /**
      * Délivre un signal d'appel à un utilisateur spécifique.
      * 
@@ -191,7 +191,7 @@ public class MessageBroker {
             }
             return false;
         }
-        
+
         /**
          * Tente de délivrer un signal d'appel au client.
          * 

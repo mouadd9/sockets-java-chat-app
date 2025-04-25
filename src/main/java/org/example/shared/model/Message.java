@@ -79,9 +79,21 @@ public class Message {
         return msg;
     }
 
-
-
-
+    // New utility method to clone a message for a specific receiver
+    public static Message copyForReceiver(final Message original, final long receiverUserId) {
+        final Message copy = new Message();
+        copy.setSenderUserId(original.getSenderUserId());
+        copy.setReceiverUserId(receiverUserId);
+        copy.setGroupId(original.getGroupId());
+        copy.setContent(original.getContent());
+        copy.setTimestamp(original.getTimestamp());
+        copy.setStatus(original.getStatus());
+        copy.setType(original.getType());
+        copy.setFileName(original.getFileName());
+        copy.setFileSize(original.getFileSize());
+        copy.setMimeType(original.getMimeType());
+        return copy;
+    }
 
     public long getId() { return id; }
     public void setId(final long id) { this.id = id; }

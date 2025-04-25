@@ -17,7 +17,8 @@ import org.example.shared.model.enums.MessageType;
 public class MessageDAO {
 
     public void createMessage(final Message message) {
-        final String sql = "INSERT INTO messages (sender_user_id, receiver_user_id, group_id, content, timestamp, status, " + "message_type, file_name, file_size, mime_type) VALUES (?,?,?,?,?,?,?,?,?,?)";
+        final String sql = "INSERT INTO messages (sender_user_id, receiver_user_id, group_id, content, timestamp, status, "
+                + "message_type, file_name, file_size, mime_type) VALUES (?,?,?,?,?,?,?,?,?,?)";
         try (Connection conn = JDBCUtil.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
@@ -98,7 +99,24 @@ public class MessageDAO {
             stmt.setLong(4, receiverUserId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    messages.add(extractMessageFromResultSet(rs));
+                    final Message message = new Message();
+                    message.setId(rs.getLong("id"));
+                    message.setSenderUserId(rs.getLong("sender_user_id"));
+                    final long rec = rs.getLong("receiver_user_id");
+                    if (!rs.wasNull()) {
+                        message.setReceiverUserId(rec);
+                    }
+                    final long grp = rs.getLong("group_id");
+                    if (!rs.wasNull()) {
+                        message.setGroupId(grp);
+                    }
+                    message.setContent(rs.getString("content"));
+                    final Timestamp ts = rs.getTimestamp("timestamp");
+                    if (ts != null) {
+                        message.setTimestamp(ts.toLocalDateTime());
+                    }
+                    message.setStatus(MessageStatus.valueOf(rs.getString("status")));
+                    messages.add(message);
                 }
             }
         }
@@ -135,6 +153,16 @@ public class MessageDAO {
             stmt.setLong(1, messageId);
             final int affectedRows = stmt.executeUpdate();
             return affectedRows > 0;
+        }
+    }
+
+    public void updateMessageStatus(final long messageId, final MessageStatus status) throws SQLException {
+        final String sql = "UPDATE messages SET status = ? WHERE id = ?";
+        try (Connection conn = JDBCUtil.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, status.name());
+            stmt.setLong(2, messageId);
+            stmt.executeUpdate();
         }
     }
 
