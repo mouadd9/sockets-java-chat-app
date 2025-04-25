@@ -6,6 +6,9 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.example.client.gui.repository.JsonLocalMessageRepository;
 import org.example.client.gui.service.CallManager;
@@ -20,6 +23,7 @@ import org.example.shared.model.Message;
 import org.example.shared.model.User;
 
 import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
@@ -39,10 +43,9 @@ import javafx.scene.control.ToggleButton;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.paint.Color;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
+import javafx.scene.shape.Circle;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
@@ -182,6 +185,9 @@ public class ChatController {
         chatService.setCallSignalConsumer(this::handleCallSignal);
         loadContacts();
         loadGroups();
+        
+        // Démarrer le rafraîchissement périodique des statuts
+        startContactStatusUpdater();
     }
 
     /**
@@ -564,39 +570,59 @@ public class ChatController {
             final java.util.function.Function<T, Optional<Message>> lastMsgFn,
             final java.util.function.Function<T, String> avatarUrlFn,
             final java.util.function.Function<Optional<Message>, String> msgTextFn) {
-        return new ListCell<>() {
-            private final ImageView avatar = createCircularAvatar(null, 30);
+        return new ListCell<T>() {
+            private User currentUser = null;
+            private final ChangeListener<Boolean> onlineListener = (obs, oldVal, newVal) -> {
+                updateOnlineIndicator(newVal);
+            };
+
+            private final HBox hbox = new HBox(10);
+            private final ImageView avatar = new ImageView();
+            private final VBox contentBox = new VBox(2);
             private final Label nameLabel = new Label();
             private final Label lastMsgLabel = new Label();
-            private final VBox textVBox = new VBox(nameLabel, lastMsgLabel);
-            private final HBox hbox = new HBox(10, avatar, textVBox);
-            {
-                lastMsgLabel.setTextFill(Color.GRAY);
-                lastMsgLabel.setFont(Font.font("System", FontWeight.NORMAL, 12));
-                hbox.setAlignment(Pos.CENTER_LEFT);
+            private final Circle onlineIndicator = new Circle(5);
 
-                // Définir une image par défaut pour éviter les problèmes d'initialisation
-                try (InputStream defaultImageStream = getClass().getResourceAsStream("/images/default_avatar.png")) {
-                    if (defaultImageStream != null) {
-                        avatar.setImage(new Image(defaultImageStream, 30, 30, true, true));
-                    }
-                } catch (final IOException e) {
-                    System.err.println("Impossible de charger l'image par défaut: " + e.getMessage());
-                }
+            {
+                hbox.setPadding(new Insets(5));
+                hbox.setAlignment(Pos.CENTER_LEFT);
+                avatar.setFitHeight(30);
+                avatar.setFitWidth(30);
+                avatar.setPreserveRatio(true);
+                nameLabel.getStyleClass().add("contact-name");
+                lastMsgLabel.getStyleClass().add("last-message");
+                contentBox.getChildren().addAll(nameLabel, lastMsgLabel);
+
+                onlineIndicator.getStyleClass().add("offline-indicator");
+
+                final StackPane avatarContainer = new StackPane();
+                avatarContainer.getChildren().add(avatar);
+                StackPane.setAlignment(onlineIndicator, Pos.BOTTOM_RIGHT);
+                avatarContainer.getChildren().add(onlineIndicator);
+
+                hbox.getChildren().addAll(avatarContainer, contentBox);
             }
 
             @Override
             protected void updateItem(final T item, final boolean empty) {
                 super.updateItem(item, empty);
+
+                // Remove previous listener
+                if (currentUser != null) {
+                    currentUser.onlineProperty().removeListener(onlineListener);
+                    currentUser = null;
+                }
+
                 if (empty || item == null) {
                     setText(null);
                     setGraphic(null);
+                    onlineIndicator.setVisible(false);
                     return;
                 }
 
                 nameLabel.setText(nameFn.apply(item));
                 final String url = avatarUrlFn.apply(item);
-                if (url != null) { // Éviter de passer une URL null à loadImage
+                if (url != null) {
                     final Image img = loadImage(url, 30);
                     if (img != null) {
                         avatar.setImage(img);
@@ -604,7 +630,24 @@ public class ChatController {
                 }
                 final Optional<Message> msg = lastMsgFn.apply(item);
                 lastMsgLabel.setText(msgTextFn.apply(msg));
+
+                if (item instanceof User) {
+                    currentUser = (User) item;
+                    currentUser.onlineProperty().addListener(onlineListener);
+                    updateOnlineIndicator(currentUser.isOnline());
+                } else {
+                    onlineIndicator.setVisible(false);
+                }
+
                 setGraphic(hbox);
+            }
+
+            private void updateOnlineIndicator(final boolean isOnline) {
+                Platform.runLater(() -> {
+                    onlineIndicator.getStyleClass().removeAll("online-indicator", "offline-indicator");
+                    onlineIndicator.getStyleClass().add(isOnline ? "online-indicator" : "offline-indicator");
+                    onlineIndicator.setVisible(true);
+                });
             }
         };
     }
@@ -1061,5 +1104,25 @@ public class ChatController {
         } catch (final IOException e) {
             setStatus("Erreur lors de la déconnexion: " + e.getMessage());
         }
+    }
+
+    private void startContactStatusUpdater() {
+        final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                for (final User user : contacts) {
+                    final boolean isOnline = contactService.isUserOnline(user.getId());
+                    Platform.runLater(() -> user.setOnline(isOnline));
+                }
+            } catch (final IOException e) {
+                Platform.runLater(() -> setStatus("Erreur mise à jour des statuts: " + e.getMessage()));
+            }
+        }, 0, 5, TimeUnit.SECONDS); // Vérifie toutes les 5 secondes
+
+        // Arrêter le scheduler à la fermeture de la fenêtre
+        Platform.runLater(() -> {
+            final Stage stage = (Stage) userEmailLabel.getScene().getWindow();
+            stage.setOnCloseRequest(event -> scheduler.shutdown());
+        });
     }
 }

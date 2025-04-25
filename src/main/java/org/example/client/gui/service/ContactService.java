@@ -100,4 +100,15 @@ public class ContactService {
 
         return contactDAO.deleteContact(user.getId(), contactUser.getId());
     }
+
+    /**
+     * Vérifie si un utilisateur est en ligne.
+     */
+    public boolean isUserOnline(final long userId) throws IOException {
+        final User user = userService.getUserById(userId);
+        if (user == null) {
+            throw new IOException("Utilisateur non trouvé avec l'ID: " + userId);
+        }
+        return user.isOnline();
+    }
 }

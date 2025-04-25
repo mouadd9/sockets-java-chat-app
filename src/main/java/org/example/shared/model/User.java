@@ -4,6 +4,9 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
+
 public class User implements Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -11,7 +14,7 @@ public class User implements Serializable {
     private String email; // Unique
     private String displayName;
     private String passwordHash; // Important: C'est un HASH !
-    private boolean isOnline;
+    private final BooleanProperty online = new SimpleBooleanProperty(false);
     private LocalDateTime createdAt;
     private LocalDateTime lastLoginAt; // Peut être null
     private String profilePictureUrl; // URL de l'image de profil
@@ -20,8 +23,8 @@ public class User implements Serializable {
     // Constructeur par défaut
     public User() {
         this.createdAt = LocalDateTime.now();
-        this.isOnline = false;
-        this.profilePictureUrl = "default_avatar.png"; // Image par défaut
+        this.online.set(false);
+        this.profilePictureUrl = "/images/default_avatar.png"; // Image par défaut
     }
 
     // Constructeur pour la création initiale (avant sauvegarde)
@@ -40,8 +43,9 @@ public class User implements Serializable {
     public void setDisplayName(final String displayName) { this.displayName = displayName; }
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(final String passwordHash) { this.passwordHash = passwordHash; }
-    public boolean isOnline() { return isOnline; }
-    public void setOnline(final boolean online) { isOnline = online; }
+    public boolean isOnline() { return online.get(); }
+    public void setOnline(final boolean online) { this.online.set(online); }
+    public BooleanProperty onlineProperty() { return online; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(final LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getLastLoginAt() { return lastLoginAt; }

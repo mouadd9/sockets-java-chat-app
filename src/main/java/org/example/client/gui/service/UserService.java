@@ -1,8 +1,6 @@
 package org.example.client.gui.service;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.example.shared.dao.UserDAO;
 import org.example.shared.model.User;
@@ -12,8 +10,6 @@ import org.example.shared.model.User;
  */
 public class UserService {
     private final UserDAO userDAO;
-    private final Map<String, User> userEmailCache = new HashMap<>();
-    private final Map<Long, User> userIdCache = new HashMap<>();
 
     public UserService() {
         this.userDAO = new UserDAO();
@@ -27,20 +23,11 @@ public class UserService {
             throw new IllegalArgumentException("L'email ne peut pas être vide");
         }
         
-        // Vérifier le cache d'abord
-        if (userEmailCache.containsKey(email)) {
-            return userEmailCache.get(email);
-        }
-        
         // Sinon, interroger la base de données
         final User user = userDAO.findUserByEmail(email);
         if (user == null) {
-            throw new IOException("Utilisateur non trouvé avec email: " + email);
+            throw new IOException("Utilisateur non trouvé: " + email);
         }
-        
-        // Mettre en cache
-        userEmailCache.put(email, user);
-        userIdCache.put(user.getId(), user);
         
         return user;
     }
@@ -53,30 +40,13 @@ public class UserService {
             throw new IllegalArgumentException("L'ID utilisateur doit être positif");
         }
         
-        // Vérifier le cache d'abord
-        if (userIdCache.containsKey(userId)) {
-            return userIdCache.get(userId);
-        }
-        
         // Sinon, interroger la base de données
         final User user = userDAO.findUserById(userId);
         if (user == null) {
-            throw new IOException("Utilisateur non trouvé avec ID: " + userId);
+            throw new IOException("Utilisateur non trouvé avec l'ID: " + userId);
         }
         
-        // Mettre en cache
-        userEmailCache.put(user.getEmail(), user);
-        userIdCache.put(userId, user);
-        
         return user;
-    }
-    
-    /**
-     * Efface le cache pour forcer le rechargement des données
-     */
-    public void clearCache() {
-        userEmailCache.clear();
-        userIdCache.clear();
     }
     
     /**
@@ -88,9 +58,5 @@ public class UserService {
         }
         
         userDAO.updateUser(user);
-        
-        // Mettre à jour le cache
-        userEmailCache.put(user.getEmail(), user);
-        userIdCache.put(user.getId(), user);
     }
 }

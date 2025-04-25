@@ -91,7 +91,7 @@ public class UserDAO {
         return null;
     }
 
-    public void updateUser(final User user) {
+    public boolean updateUser(final User user) {
         final String sql = "UPDATE users SET email=?, display_name=?, password_hash=?, is_online=?, created_at=?, last_login_at=?, profile_picture_url=? WHERE id=?";
         try (Connection conn = JDBCUtil.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -104,9 +104,13 @@ public class UserDAO {
             stmt.setTimestamp(6, user.getLastLoginAt() != null ? Timestamp.valueOf(user.getLastLoginAt()) : null);
             stmt.setString(7, user.getProfilePictureUrl());
             stmt.setLong(8, user.getId());
-            stmt.executeUpdate();
+
+            final int rowsAffected = stmt.executeUpdate();
+            return rowsAffected > 0;
         } catch (final SQLException e) {
+            System.err.println("Erreur lors de la mise à jour de l'utilisateur: " + e.getMessage());
             e.printStackTrace();
+            return false;
         }
     }
 

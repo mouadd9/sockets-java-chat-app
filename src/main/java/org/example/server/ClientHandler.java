@@ -49,7 +49,7 @@ public class ClientHandler implements Runnable {
             this.output = out;
 
             // Lire la première ligne pour déterminer le type de requête
-            String requestType = input.readLine();
+            final String requestType = input.readLine();
             
             if ("REGISTER".equals(requestType)) {
                 handleRegistration();
@@ -61,13 +61,24 @@ public class ClientHandler implements Runnable {
                 }
                 sendResponse("AUTH_SUCCESS");
                 
+                handleUserLogin(clientEmail);
                 initializeSubscription();
                 processMessages();
             }
         } catch (final IOException e) {
             System.out.println("Client connection error: " + e.getMessage());
         } finally {
+            if (clientEmail != null) {
+                handleUserLogout(clientEmail);
+            }
             cleanup();
+            try {
+                if (clientSocket != null && !clientSocket.isClosed()) {
+                    clientSocket.close();
+                }
+            } catch (final IOException e) {
+                System.err.println("Erreur lors de la fermeture du socket: " + e.getMessage());
+            }
         }
     }
 
@@ -115,7 +126,7 @@ public class ClientHandler implements Runnable {
             // Envoyer une réponse de succès
             sendResponse("REGISTER_SUCCESS");
             
-        } catch (Exception e) {
+        } catch (final Exception e) {
             System.out.println("Registration error: " + e.getMessage());
             e.printStackTrace();
             sendResponse("Erreur lors de l'inscription: " + e.getMessage());
@@ -151,7 +162,9 @@ public class ClientHandler implements Runnable {
                     // C'est un message normal
                     final Message message = mapper.readValue(jsonData, Message.class);
                     if ("LOGOUT".equalsIgnoreCase(message.getContent())) {
+                        handleUserLogout(clientEmail);
                         terminateSession();
+                        break; // Sortir de la boucle après déconnexion
                     } else {
                         broker.sendMessage(message);
                     }
@@ -187,6 +200,40 @@ public class ClientHandler implements Runnable {
     private void cleanup() {
         if (clientEmail != null) {
             broker.unregisterListener(clientId);
+        }
+    }
+
+    // Lors de la connexion d'un utilisateur
+    public void handleUserLogin(final String email) {
+        try {
+            final User user = userDAO.findUserByEmail(email);
+            if (user != null) {
+                user.setOnline(true);
+                final boolean success = userDAO.updateUser(user);
+                if (!success) {
+                    System.err.println("Échec de la mise à jour du statut en ligne pour: " + email);
+                }
+            }
+        } catch (final Exception e) {
+            System.err.println("Erreur lors de la mise à jour du statut en ligne: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    // Lors de la déconnexion d'un utilisateur
+    public void handleUserLogout(final String email) {
+        try {
+            final User user = userDAO.findUserByEmail(email);
+            if (user != null) {
+                user.setOnline(false);
+                final boolean success = userDAO.updateUser(user);
+                if (!success) {
+                    System.err.println("Échec de la mise à jour du statut hors ligne pour: " + email);
+                }
+            }
+        } catch (final Exception e) {
+            System.err.println("Erreur lors de la mise à jour du statut hors ligne: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }

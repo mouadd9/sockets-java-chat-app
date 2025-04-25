@@ -57,7 +57,7 @@ public class ChatService {
 
             // Envoyer la commande de connexion pour différencier des requêtes d'inscription
             out.println("LOGIN");
-            
+
             // Envoyer les identifiants
             final String jsonCredentials = objectMapper.writeValueAsString(credentials);
             out.println(jsonCredentials);
@@ -87,13 +87,24 @@ public class ChatService {
     }
 
     public void disconnect() throws IOException {
-        // Envoi d'un message de déconnexion (exemple simplifié)
-        final Message logoutMsg = new Message();
+        if (socket == null || socket.isClosed() || out == null) {
+            return; // Déjà déconnecté
+        }
+
+        // Créer un message LOGOUT explicite
+        Message logoutMsg = new Message();
         logoutMsg.setSenderUserId(getCurrentUserId());
-        out.println(objectMapper.writeValueAsString(logoutMsg));
+        logoutMsg.setContent("LOGOUT");
+        sendMessage(logoutMsg);
+
+        // Attendre un court instant pour que le serveur traite le message
+        try {
+            Thread.sleep(200);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
 
         closeResources();
-
         userEmail = null;
         messageConsumer = null;
         callSignalConsumer = null;
@@ -103,14 +114,20 @@ public class ChatService {
 
     private void closeResources() {
         try {
-            if (out != null) out.close();
-        } catch (final Exception e) { /* Ignorer */ }
+            if (out != null)
+                out.close();
+        } catch (final Exception e) {
+            /* Ignorer */ }
         try {
-            if (in != null) in.close();
-        } catch (final Exception e) { /* Ignorer */ }
+            if (in != null)
+                in.close();
+        } catch (final Exception e) {
+            /* Ignorer */ }
         try {
-            if (socket != null && !socket.isClosed()) socket.close();
-        } catch (final IOException e) { /* Ignorer */ }
+            if (socket != null && !socket.isClosed())
+                socket.close();
+        } catch (final IOException e) {
+            /* Ignorer */ }
         out = null;
         in = null;
         socket = null;
@@ -137,11 +154,12 @@ public class ChatService {
         return Message.newDirectMessage(sender.getId(), receiver.getId(), content);
     }
 
-    public Message createGroupMessage(final String senderEmail, final long groupId, final String content) throws IOException {
+    public Message createGroupMessage(final String senderEmail, final long groupId, final String content)
+            throws IOException {
         final User sender = userDAO.findUserByEmail(senderEmail);
         return Message.newGroupMessage(sender.getId(), groupId, content);
     }
-    
+
     public boolean sendMessage(final Message message) throws IOException {
         if (socket == null || socket.isClosed() || out == null) {
             throw new IOException("Non connecté au serveur");
@@ -159,7 +177,7 @@ public class ChatService {
     public void setMessageConsumer(final Consumer<Message> consumer) {
         this.messageConsumer = consumer;
     }
-    
+
     public void setCallSignalConsumer(final Consumer<CallSignal> consumer) {
         this.callSignalConsumer = consumer;
     }
@@ -216,11 +234,11 @@ public class ChatService {
         out.println(jsonSignal);
         return true;
     }
-    
+
     /**
      * Crée un signal de demande d'appel.
      * 
-     * @param callSession La session d'appel
+     * @param callSession   La session d'appel
      * @param receiverEmail L'email du destinataire
      * @return Le signal de demande d'appel créé
      * @throws IOException En cas d'erreur
@@ -228,69 +246,70 @@ public class ChatService {
     public CallSignal createCallRequest(final CallSession callSession, final String receiverEmail) throws IOException {
         final User caller = userDAO.findUserByEmail(userEmail);
         final User receiver = userDAO.findUserByEmail(receiverEmail);
-        
+
         if (receiver == null) {
             throw new IOException("Destinataire non trouvé: " + receiverEmail);
         }
-        
+
         return CallSignal.createCallRequest(
-                callSession.getSessionId(), 
-                caller.getId(), 
+                callSession.getSessionId(),
+                caller.getId(),
                 receiver.getId());
     }
-    
+
     /**
      * Crée un signal d'acceptation d'appel.
      * 
-     * @param sessionId L'ID de la session d'appel
+     * @param sessionId    L'ID de la session d'appel
      * @param callerUserId L'ID de l'appelant
-     * @param localPort Le port UDP local pour la communication audio
+     * @param localPort    Le port UDP local pour la communication audio
      * @return Le signal d'acceptation créé
      * @throws IOException En cas d'erreur
      */
-    public CallSignal createCallAccept(final String sessionId, final long callerUserId, final int localPort) throws IOException {
+    public CallSignal createCallAccept(final String sessionId, final long callerUserId, final int localPort)
+            throws IOException {
         final User receiver = userDAO.findUserByEmail(userEmail);
         final String localIp = InetAddress.getLocalHost().getHostAddress();
-        
+
         return CallSignal.createCallAccept(
-                sessionId, 
-                receiver.getId(), 
-                callerUserId, 
-                localIp, 
+                sessionId,
+                receiver.getId(),
+                callerUserId,
+                localIp,
                 localPort);
     }
-    
+
     /**
      * Crée un signal de rejet d'appel.
      * 
-     * @param sessionId L'ID de la session d'appel
+     * @param sessionId    L'ID de la session d'appel
      * @param callerUserId L'ID de l'appelant
      * @return Le signal de rejet créé
      * @throws IOException En cas d'erreur
      */
     public CallSignal createCallReject(final String sessionId, final long callerUserId) throws IOException {
         final User receiver = userDAO.findUserByEmail(userEmail);
-        
+
         return CallSignal.createCallReject(
-                sessionId, 
-                receiver.getId(), 
+                sessionId,
+                receiver.getId(),
                 callerUserId);
     }
-    
+
     /**
      * Crée un signal de fin d'appel.
      * 
-     * @param sessionId L'ID de la session d'appel
+     * @param sessionId   L'ID de la session d'appel
      * @param otherUserId L'ID de l'autre utilisateur dans l'appel
      * @return Le signal de fin d'appel créé
      * @throws IOException En cas d'erreur
      */
     public CallSignal createCallEnd(final String sessionId, final long otherUserId) throws IOException {
         final User user = userDAO.findUserByEmail(userEmail);
-        
+
         return CallSignal.createCallEnd(
-                sessionId, 
-                user.getId(), 
+                sessionId,
+                user.getId(),
                 otherUserId);
     }
 }
