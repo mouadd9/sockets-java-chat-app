@@ -61,7 +61,7 @@ public class ChatService {
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
             // Envoyer la commande de connexion pour différencier des requêtes d'inscription
-            //out.println("LOGIN");
+            out.println("LOGIN");
 
             // Envoyer les identifiants
             final String jsonCredentials = objectMapper.writeValueAsString(credentials);
