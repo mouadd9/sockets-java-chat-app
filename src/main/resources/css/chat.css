@@ -131,3 +131,179 @@
     -fx-stroke-width: 1.5;
     -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 2, 0, 0, 0);
 }
+
+/* New styles for multimedia messages */
+
+/* Media button */
+.media-button {
+    -fx-background-radius: 20;
+    -fx-min-width: 35px;
+    -fx-min-height: 35px;
+    -fx-max-width: 35px;
+    -fx-max-height: 35px;
+    -fx-background-color: #f1f1f1;
+    -fx-text-fill: #4caf50;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+.media-button:hover {
+    -fx-background-color: #e1e1e1;
+}
+
+/* Record button */
+.record-button {
+    -fx-background-radius: 20;
+    -fx-min-width: 35px;
+    -fx-min-height: 35px;
+    -fx-max-width: 35px;
+    -fx-max-height: 35px;
+    -fx-background-color: #f1f1f1;
+    -fx-text-fill: #f44336;
+    -fx-font-size: 16px;
+}
+
+.record-button:hover {
+    -fx-background-color: #e1e1e1;
+}
+
+.record-button.recording {
+    -fx-background-color: #f44336;
+    -fx-text-fill: white;
+}
+
+/* Attachment preview */
+.attachment-preview {
+    -fx-background-color: #f1f1f1;
+    -fx-padding: 8px;
+    -fx-background-radius: 5px;
+    -fx-border-radius: 5px;
+    -fx-border-color: #ddd;
+    -fx-border-width: 1px;
+}
+
+.attachment-name {
+    -fx-text-fill: #444;
+}
+
+.remove-attachment-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #888;
+    -fx-font-size: 16px;
+    -fx-min-width: 24px;
+    -fx-min-height: 24px;
+    -fx-max-width: 24px;
+    -fx-max-height: 24px;
+    -fx-padding: 0;
+}
+
+.remove-attachment-button:hover {
+    -fx-text-fill: #f44336;
+}
+
+/* Recording indicator */
+.recording-indicator {
+    -fx-background-color: #ffebee;
+    -fx-padding: 8px;
+    -fx-background-radius: 5px;
+    -fx-border-radius: 5px;
+    -fx-border-color: #ffcdd2;
+    -fx-border-width: 1px;
+}
+
+.recording-label {
+    -fx-text-fill: #d32f2f;
+}
+
+.recording-time {
+    -fx-text-fill: #d32f2f;
+    -fx-font-family: monospace;
+}
+
+/* Media message containers */
+.media-message-container {
+    -fx-padding: 5px;
+    -fx-background-color: transparent;
+}
+
+.image-preview {
+    -fx-background-radius: 5px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 5, 0, 0, 0);
+    -fx-cursor: hand;
+}
+
+.video-preview {
+    -fx-background-radius: 5px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 5, 0, 0, 0);
+    -fx-cursor: hand;
+}
+
+.audio-player {
+    -fx-background-color: #f5f5f5;
+    -fx-background-radius: 20px;
+    -fx-padding: 5px 10px;
+    -fx-alignment: center-left;
+    -fx-spacing: 5;
+}
+
+.audio-play-button {
+    -fx-background-radius: 15px;
+    -fx-min-width: 30px;
+    -fx-min-height: 30px;
+    -fx-max-width: 30px;
+    -fx-max-height: 30px;
+    -fx-background-color: #4caf50;
+    -fx-text-fill: white;
+    -fx-font-size: 12px;
+    -fx-padding: 0;
+}
+
+.audio-progress {
+    -fx-pref-height: 5px;
+}
+
+.document-preview {
+    -fx-background-color: #f1f1f1;
+    -fx-background-radius: 5px;
+    -fx-border-radius: 5px;
+    -fx-border-color: #ddd;
+    -fx-border-width: 1px;
+    -fx-padding: 10px;
+    -fx-alignment: center-left;
+    -fx-spacing: 10;
+    -fx-cursor: hand;
+}
+
+.document-icon {
+    -fx-text-fill: #4285f4;
+    -fx-font-size: 24px;
+}
+
+.document-name {
+    -fx-text-fill: #333;
+}
+
+.document-size {
+    -fx-text-fill: #888;
+    -fx-font-size: 10px;
+}
+
+/* Style for the media gallery button */
+.media-gallery-button {
+    -fx-background-color: #f1f1f1;
+    -fx-text-fill: #4caf50;
+    -fx-padding: 5px 10px;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+}
+
+/* Style for call button */
+.call-button {
+    -fx-background-radius: 10px;
+    -fx-background-color: #2196F3;
+    -fx-text-fill: white;
+}
+
+.call-button:hover {
+    -fx-background-color: #42A5F5;
+}

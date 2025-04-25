@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.Text?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="org.example.client.gui.controllers.MediaDialogController"
+            prefWidth="500.0" prefHeight="400.0">
+
+    <top>
+        <HBox alignment="CENTER" spacing="10" style="-fx-background-color: #4caf50; -fx-padding: 10px;">
+            <Label text="Envoyer un média" style="-fx-text-fill: white; -fx-font-size: 16px;"/>
+        </HBox>
+    </top>
+
+    <center>
+        <VBox spacing="15" style="-fx-padding: 20px;">
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="Type de média:" />
+                <ComboBox fx:id="mediaTypeComboBox" promptText="Choisir type de média" prefWidth="200"/>
+            </HBox>
+
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="Fichier:" />
+                <TextField fx:id="filePathField" editable="false" HBox.hgrow="ALWAYS" />
+                <Button text="Parcourir..." onAction="#handleBrowseFile" />
+            </HBox>
+
+            <VBox fx:id="previewContainer" VBox.vgrow="ALWAYS" spacing="10" style="-fx-padding: 10px; -fx-border-color: #ddd; -fx-border-radius: 5px;">
+                <Text text="Aperçu du média sera affiché ici" style="-fx-fill: #999;"/>
+            </VBox>
+
+            <HBox fx:id="recordAudioContainer" spacing="10" alignment="CENTER_LEFT" visible="false" managed="false">
+                <Button fx:id="recordButton" text="🎤 Enregistrer" onAction="#handleRecordAudio" />
+                <Label fx:id="recordingTimeLabel" text="00:00" />
+                <Region HBox.hgrow="ALWAYS" />
+                <ProgressBar fx:id="audioLevelIndicator" progress="0" prefWidth="100" />
+            </HBox>
+        </VBox>
+    </center>
+
+    <bottom>
+        <HBox alignment="CENTER_RIGHT" spacing="10" style="-fx-padding: 10px; -fx-background-color: #f5f5f5;">
+            <Button text="Annuler" onAction="#handleCancel" style="-fx-padding: 5px 15px;" />
+            <Button fx:id="sendButton" text="Envoyer" onAction="#handleSend" style="-fx-padding: 5px 15px; -fx-background-color: #4caf50; -fx-text-fill: white;" />
+        </HBox>
+    </bottom>
+
+</BorderPane>

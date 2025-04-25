@@ -9,26 +9,27 @@
             xmlns:fx="http://javafx.com/fxml"
             fx:controller="org.example.client.gui.controllers.ChatController"
             prefHeight="600.0" prefWidth="800.0">
-    
+
     <stylesheets>
         <URL value="@../css/chat.css"/>
     </stylesheets>
-    
+
     <top>
         <HBox alignment="CENTER_LEFT" spacing="10" styleClass="header">
             <Label text="Chat Application" styleClass="header-text"/>
+            <Button fx:id="mediaGalleryButton" text="Galerie Média" styleClass="media-gallery-button"/>
             <Region HBox.hgrow="ALWAYS"/>
             <Label fx:id="userEmailLabel" styleClass="header-text"/>
             <Button text="Déconnexion" onAction="#handleLogout"/>
         </HBox>
     </top>
-    
+
     <left>
         <VBox spacing="5" prefWidth="250">
             <padding>
                 <Insets top="5" right="5" bottom="5" left="5"/>
             </padding>
-            
+
             <Label text="Contacts" style="-fx-font-weight: bold;"/>
             <HBox spacing="5">
                 <TextField fx:id="newContactField" promptText="Ajouter un contact" HBox.hgrow="ALWAYS"/>
@@ -40,13 +41,13 @@
                     <Label text="Aucun contact"/>
                 </placeholder>
             </ListView>
-            
+
             <Separator>
                 <padding>
                     <Insets top="10" bottom="10"/>
                 </padding>
             </Separator>
-            
+
             <Label text="Groupes" style="-fx-font-weight: bold;"/>
             <HBox spacing="5">
                 <TextField fx:id="groupNameField" promptText="Nom du groupe" HBox.hgrow="ALWAYS"/>
@@ -64,7 +65,7 @@
             </HBox>
         </VBox>
     </left>
-    
+
     <center>
         <BorderPane>
             <top>
@@ -84,11 +85,36 @@
             </center>
             <bottom>
                 <VBox spacing="5">
-                    <HBox spacing="5" alignment="CENTER_LEFT" style="-fx-padding: 10px;">
-                        <TextField fx:id="messageField" promptText="Écrire un message..." HBox.hgrow="ALWAYS"/>
-                        <Button text="Envoyer" styleClass="send-button" onAction="#handleSendMessage"/>
-                        <Button fx:id="callButton" text="Appeler" styleClass="call-button" onAction="#handleCallRequest" disable="true"/>
+                    <!-- Media attachment indicator -->
+                    <HBox fx:id="attachmentPreviewContainer" spacing="5" alignment="CENTER_LEFT" styleClass="attachment-preview" managed="false" visible="false">
+                        <Label fx:id="attachmentNameLabel" styleClass="attachment-name"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Button text="×" onAction="#handleRemoveAttachment" styleClass="remove-attachment-button"/>
                     </HBox>
+
+                    <!-- Recording indicator -->
+                    <HBox fx:id="recordingIndicatorContainer" spacing="5" alignment="CENTER_LEFT" styleClass="recording-indicator" managed="false" visible="false">
+                        <Label text="⚫ Enregistrement en cours..." styleClass="recording-label"/>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label fx:id="recordingTimeLabel" text="00:00" styleClass="recording-time"/>
+                    </HBox>
+
+                    <!-- Message input area -->
+                    <HBox spacing="5" alignment="CENTER_LEFT" style="-fx-padding: 10px;">
+                        <!-- Media attachment button -->
+                        <Button fx:id="mediaButton" text="📎 Media" styleClass="send-button" onAction="#handleMediaButtonClick"/>
+
+                        <!-- Audio recording button -->
+                        <Button fx:id="audioRecordButton" text="🎤 Audio" styleClass="send-button" onAction="#handleAudioRecordButtonClick"/>
+
+                        <!-- Message text field -->
+                        <TextField fx:id="messageField" promptText="Écrire un message..." HBox.hgrow="ALWAYS"/>
+
+                        <!-- Send button -->
+                        <Button text="Envoyer" styleClass="send-button" onAction="#handleSendMessage"/>
+                        <Button fx:id="callButton" text="📞 Appeler" styleClass="call-button" onAction="#handleCallRequest" disable="true"/>
+                    </HBox>
+
                     <!-- Zone d'interface d'appel (initialement cachée) -->
                     <VBox fx:id="callControlsBox" spacing="5" style="-fx-padding: 10px; -fx-background-color: #f0f0f0; -fx-border-color: #cccccc; -fx-border-radius: 5;" visible="false" managed="false">
                         <HBox alignment="CENTER_LEFT" spacing="10">
