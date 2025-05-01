@@ -9,14 +9,18 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.stream.Collectors;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
+import javax.sound.sampled.LineUnavailableException;
+
+import org.example.client.exception.PublicKeyNotAvailableException;
 import org.example.client.gui.repository.JsonLocalMessageRepository;
-import org.example.client.gui.service.CallManager;
+import org.example.client.gui.security.KeyManager;
 import org.example.client.gui.service.AudioRecorderService;
+import org.example.client.gui.service.CallManager;
 import org.example.client.gui.service.ChatService;
 import org.example.client.gui.service.ContactService;
 import org.example.client.gui.service.FileService;
@@ -41,7 +45,6 @@ import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
-import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
@@ -53,7 +56,6 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -61,16 +63,13 @@ import javafx.scene.media.Media;
 import javafx.scene.media.MediaPlayer;
 import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
-import javafx.scene.shape.Circle;
-import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
-
-import javax.sound.sampled.LineUnavailableException;
 
 public class ChatController {
     @FXML
@@ -151,6 +150,9 @@ public class ChatController {
     private Timer recordingTimer;
     private int recordingSeconds = 0;
 
+    // KeyManager for E2EE
+    private KeyManager keyManager;
+
     @FXML
     public void initialize() {
         mediaGalleryButton.setOnAction(this::handleOpenMediaGallery);
@@ -175,7 +177,7 @@ public class ChatController {
                         if (m.isTextMessage()) {
                             return prefix + truncate(m.getContent(), 30);
                         } else {
-                            String mediaTypeIcon = getMediaTypeIcon(m.getType());
+                            final String mediaTypeIcon = getMediaTypeIcon(m.getType());
                             return prefix + mediaTypeIcon + " " + (m.getFileName() != null ? m.getFileName() : "Média");
                         }
                     } catch (final Exception e) {
@@ -206,7 +208,7 @@ public class ChatController {
                     if (m.isTextMessage()) {
                         return prefix + truncate(m.getContent(), 30);
                     } else {
-                        String mediaTypeIcon = getMediaTypeIcon(m.getType());
+                        final String mediaTypeIcon = getMediaTypeIcon(m.getType());
                         return prefix + mediaTypeIcon + " " + (m.getFileName() != null ? m.getFileName() : "Média");
                     }
                 }).orElse("")));
@@ -254,13 +256,13 @@ public class ChatController {
         // Initialize media button context menu
         final ContextMenu mediaMenu = new ContextMenu();
 
-        MenuItem imageItem = new MenuItem("Image");
+        final MenuItem imageItem = new MenuItem("Image");
         imageItem.setOnAction(e -> openMediaFileChooser("Images", "*.png", "*.jpg", "*.jpeg", "*.gif"));
 
-        MenuItem videoItem = new MenuItem("Vidéo");
+        final MenuItem videoItem = new MenuItem("Vidéo");
         videoItem.setOnAction(e -> openMediaFileChooser("Vidéos", "*.mp4", "*.avi", "*.mov", "*.wmv"));
 
-        MenuItem documentItem = new MenuItem("Document");
+        final MenuItem documentItem = new MenuItem("Document");
         documentItem.setOnAction(e -> openMediaFileChooser("Documents", "*.*"));
 
         mediaMenu.getItems().addAll(imageItem, videoItem, documentItem);
@@ -277,7 +279,7 @@ public class ChatController {
         }
     }
 
-    private String getMediaTypeIcon(MessageType type) {
+    private String getMediaTypeIcon(final MessageType type) {
         switch (type) {
             case IMAGE:
                 return "🖼️";
@@ -292,9 +294,10 @@ public class ChatController {
         }
     }
 
-    public void initData(final ChatService service, final String userEmail) {
+    public void initData(final ChatService service, final String userEmail, final KeyManager keyManager) {
         this.chatService = service;
         this.userEmail = userEmail;
+        this.keyManager = keyManager;
         userEmailLabel.setText(userEmail);
 
         chatService.setMessageConsumer(this::handleIncomingMessage);
@@ -304,6 +307,9 @@ public class ChatController {
 
         // Démarrer le rafraîchissement périodique des statuts
         startContactStatusUpdater();
+
+        // Initialiser l'UI d'appel
+        initCallUI();
     }
 
     /**
@@ -896,22 +902,22 @@ public class ChatController {
         }
     }
 
-    private void addImageContent(VBox contentBox, Message message) {
+    private void addImageContent(final VBox contentBox, final Message message) {
         try {
             System.out.println();
-            File imageFile = chatService.getMediaFile(message);
+            final File imageFile = chatService.getMediaFile(message);
             if (imageFile.exists()) {
-                Image image = new Image(imageFile.toURI().toString());
-                ImageView imageView = new ImageView(image);
+                final Image image = new Image(imageFile.toURI().toString());
+                final ImageView imageView = new ImageView(image);
 
                 // Limit image size
-                double maxWidth = 250;
-                double maxHeight = 250;
+                final double maxWidth = 250;
+                final double maxHeight = 250;
 
                 if (image.getWidth() > maxWidth || image.getHeight() > maxHeight) {
-                    double widthRatio = maxWidth / image.getWidth();
-                    double heightRatio = maxHeight / image.getHeight();
-                    double ratio = Math.min(widthRatio, heightRatio);
+                    final double widthRatio = maxWidth / image.getWidth();
+                    final double heightRatio = maxHeight / image.getHeight();
+                    final double ratio = Math.min(widthRatio, heightRatio);
 
                     imageView.setFitWidth(image.getWidth() * ratio);
                     imageView.setFitHeight(image.getHeight() * ratio);
@@ -929,72 +935,72 @@ public class ChatController {
 
                 // Add filename if available
                 if (message.getFileName() != null) {
-                    Label filenameLabel = new Label(message.getFileName());
+                    final Label filenameLabel = new Label(message.getFileName());
                     filenameLabel.setTextFill(Color.GRAY);
                     filenameLabel.setFont(Font.font("System", FontWeight.NORMAL, 10));
                     contentBox.getChildren().add(filenameLabel);
                 }
             } else {
-                Label errorLabel = new Label("Image non disponible");
+                final Label errorLabel = new Label("Image non disponible");
                 contentBox.getChildren().add(errorLabel);
             }
-        } catch (Exception e) {
-            Label errorLabel = new Label("Erreur de chargement: " + e.getMessage());
+        } catch (final Exception e) {
+            final Label errorLabel = new Label("Erreur de chargement: " + e.getMessage());
             contentBox.getChildren().add(errorLabel);
         }
     }
 
-    private void addVideoContent(VBox contentBox, Message message) {
+    private void addVideoContent(final VBox contentBox, final Message message) {
         try {
-            File videoFile = chatService.getMediaFile(message);
+            final File videoFile = chatService.getMediaFile(message);
             if (videoFile.exists()) {
-                HBox videoContainer = new HBox();
+                final HBox videoContainer = new HBox();
                 videoContainer.setAlignment(Pos.CENTER);
                 videoContainer.getStyleClass().add("video-preview");
 
                 // Create a thumbnail or play button
-                Button playButton = new Button("▶");
+                final Button playButton = new Button("▶");
                 playButton.getStyleClass().add("audio-play-button");
                 playButton.setOnAction(e -> openVideoPlayer(videoFile));
 
-                Label videoLabel = new Label(message.getFileName() != null ? message.getFileName() : "Vidéo");
+                final Label videoLabel = new Label(message.getFileName() != null ? message.getFileName() : "Vidéo");
 
                 videoContainer.getChildren().addAll(playButton, videoLabel);
                 contentBox.getChildren().add(videoContainer);
             } else {
-                Label errorLabel = new Label("Vidéo non disponible");
+                final Label errorLabel = new Label("Vidéo non disponible");
                 contentBox.getChildren().add(errorLabel);
             }
-        } catch (Exception e) {
-            Label errorLabel = new Label("Erreur de chargement: " + e.getMessage());
+        } catch (final Exception e) {
+            final Label errorLabel = new Label("Erreur de chargement: " + e.getMessage());
             contentBox.getChildren().add(errorLabel);
         }
     }
 
-    private void addAudioContent(VBox contentBox, Message message) {
+    private void addAudioContent(final VBox contentBox, final Message message) {
         try {
-            File audioFile = chatService.getMediaFile(message);
+            final File audioFile = chatService.getMediaFile(message);
             if (audioFile.exists()) {
-                HBox audioPlayer = new HBox(10);
+                final HBox audioPlayer = new HBox(10);
                 audioPlayer.setAlignment(Pos.CENTER_LEFT);
                 audioPlayer.getStyleClass().add("audio-player");
 
-                Button playButton = new Button("▶");
+                final Button playButton = new Button("▶");
                 playButton.getStyleClass().add("audio-play-button");
 
-                ProgressBar progressBar = new ProgressBar(0);
+                final ProgressBar progressBar = new ProgressBar(0);
                 progressBar.getStyleClass().add("audio-progress");
                 progressBar.setPrefWidth(150);
 
-                Label durationLabel = new Label("00:00");
+                final Label durationLabel = new Label("00:00");
 
                 // Create the media player
-                Media media = new Media(audioFile.toURI().toString());
-                MediaPlayer mediaPlayer = new MediaPlayer(media);
+                final Media media = new Media(audioFile.toURI().toString());
+                final MediaPlayer mediaPlayer = new MediaPlayer(media);
 
                 // Configure the progress bar and duration label
                 mediaPlayer.currentTimeProperty().addListener((obs, oldVal, newVal) -> {
-                    double progress = newVal.toSeconds() / mediaPlayer.getTotalDuration().toSeconds();
+                    final double progress = newVal.toSeconds() / mediaPlayer.getTotalDuration().toSeconds();
                     Platform.runLater(() -> {
                         progressBar.setProgress(progress);
                         durationLabel.setText(formatDuration(newVal));
@@ -1021,31 +1027,31 @@ public class ChatController {
                 audioPlayer.getChildren().addAll(playButton, progressBar, durationLabel);
                 contentBox.getChildren().add(audioPlayer);
             } else {
-                Label errorLabel = new Label("Audio non disponible");
+                final Label errorLabel = new Label("Audio non disponible");
                 contentBox.getChildren().add(errorLabel);
             }
-        } catch (Exception e) {
-            Label errorLabel = new Label("Erreur de chargement: " + e.getMessage());
+        } catch (final Exception e) {
+            final Label errorLabel = new Label("Erreur de chargement: " + e.getMessage());
             contentBox.getChildren().add(errorLabel);
         }
     }
 
-    private void addDocumentContent(VBox contentBox, Message message) {
+    private void addDocumentContent(final VBox contentBox, final Message message) {
         try {
-            File documentFile = chatService.getMediaFile(message);
+            final File documentFile = chatService.getMediaFile(message);
             if (documentFile.exists()) {
-                HBox documentContainer = new HBox(10);
+                final HBox documentContainer = new HBox(10);
                 documentContainer.getStyleClass().add("document-preview");
 
-                Label iconLabel = new Label("📄");
+                final Label iconLabel = new Label("📄");
                 iconLabel.getStyleClass().add("document-icon");
 
-                VBox documentInfo = new VBox(5);
+                final VBox documentInfo = new VBox(5);
 
-                Label nameLabel = new Label(message.getFileName() != null ? message.getFileName() : "Document");
+                final Label nameLabel = new Label(message.getFileName() != null ? message.getFileName() : "Document");
                 nameLabel.getStyleClass().add("document-name");
 
-                Label sizeLabel = new Label(formatFileSize(message.getFileSize()));
+                final Label sizeLabel = new Label(formatFileSize(message.getFileSize()));
                 sizeLabel.getStyleClass().add("document-size");
 
                 documentInfo.getChildren().addAll(nameLabel, sizeLabel);
@@ -1056,17 +1062,17 @@ public class ChatController {
 
                 contentBox.getChildren().add(documentContainer);
             } else {
-                Label errorLabel = new Label("Document non disponible");
+                final Label errorLabel = new Label("Document non disponible");
                 contentBox.getChildren().add(errorLabel);
             }
-        } catch (Exception e) {
-            Label errorLabel = new Label("Erreur de chargement: " + e.getMessage());
+        } catch (final Exception e) {
+            final Label errorLabel = new Label("Erreur de chargement: " + e.getMessage());
             contentBox.getChildren().add(errorLabel);
         }
     }
 
     // Helper method to format file size
-    private String formatFileSize(Long size) {
+    private String formatFileSize(final Long size) {
         if (size == null) {
             return "Taille inconnue";
         }
@@ -1083,48 +1089,48 @@ public class ChatController {
     }
 
     // Helper method to format duration
-    private String formatDuration(javafx.util.Duration duration) {
+    private String formatDuration(final javafx.util.Duration duration) {
         int seconds = (int) Math.floor(duration.toSeconds());
-        int minutes = seconds / 60;
+        final int minutes = seconds / 60;
         seconds = seconds % 60;
         return String.format("%02d:%02d", minutes, seconds);
     }
 
     // Open image in a larger viewer
-    private void openImageViewer(Image image) {
-        Stage imageStage = new Stage();
+    private void openImageViewer(final Image image) {
+        final Stage imageStage = new Stage();
         imageStage.initModality(Modality.APPLICATION_MODAL);
         imageStage.setTitle("Visionneuse d'image");
 
-        ImageView imageView = new ImageView(image);
+        final ImageView imageView = new ImageView(image);
         imageView.setPreserveRatio(true);
 
         // Limit size to fit screen
         imageView.setFitWidth(Math.min(image.getWidth(), 800));
         imageView.setFitHeight(Math.min(image.getHeight(), 600));
 
-        ScrollPane scrollPane = new ScrollPane(imageView);
+        final ScrollPane scrollPane = new ScrollPane(imageView);
         scrollPane.setPannable(true);
         scrollPane.setFitToWidth(true);
         scrollPane.setFitToHeight(true);
 
-        Scene scene = new Scene(scrollPane);
+        final Scene scene = new Scene(scrollPane);
         imageStage.setScene(scene);
         imageStage.show();
     }
 
     // Open video player
-    private void openVideoPlayer(File videoFile) {
-        Stage videoStage = new Stage();
+    private void openVideoPlayer(final File videoFile) {
+        final Stage videoStage = new Stage();
         videoStage.initModality(Modality.APPLICATION_MODAL);
         videoStage.setTitle("Lecteur vidéo");
 
-        Media media = new Media(videoFile.toURI().toString());
-        MediaPlayer mediaPlayer = new MediaPlayer(media);
-        MediaView mediaView = new MediaView(mediaPlayer);
+        final Media media = new Media(videoFile.toURI().toString());
+        final MediaPlayer mediaPlayer = new MediaPlayer(media);
+        final MediaView mediaView = new MediaView(mediaPlayer);
 
         // Set up controls
-        Button playButton = new Button("⏸");
+        final Button playButton = new Button("⏸");
         playButton.setOnAction(e -> {
             if (mediaPlayer.getStatus() == MediaPlayer.Status.PLAYING) {
                 mediaPlayer.pause();
@@ -1135,28 +1141,28 @@ public class ChatController {
             }
         });
 
-        ProgressBar progressBar = new ProgressBar(0);
+        final ProgressBar progressBar = new ProgressBar(0);
         progressBar.setPrefWidth(300);
 
         mediaPlayer.currentTimeProperty().addListener((obs, oldVal, newVal) -> {
-            double progress = newVal.toSeconds() / mediaPlayer.getTotalDuration().toSeconds();
+            final double progress = newVal.toSeconds() / mediaPlayer.getTotalDuration().toSeconds();
             Platform.runLater(() -> progressBar.setProgress(progress));
         });
 
         // Add seek functionality
         progressBar.setOnMouseClicked(e -> {
-            double percent = e.getX() / progressBar.getWidth();
+            final double percent = e.getX() / progressBar.getWidth();
             mediaPlayer.seek(mediaPlayer.getTotalDuration().multiply(percent));
         });
 
-        HBox controls = new HBox(10, playButton, progressBar);
+        final HBox controls = new HBox(10, playButton, progressBar);
         controls.setAlignment(Pos.CENTER);
         controls.setPadding(new Insets(10));
 
-        VBox root = new VBox(10, mediaView, controls);
+        final VBox root = new VBox(10, mediaView, controls);
         root.setAlignment(Pos.CENTER);
 
-        Scene scene = new Scene(root, 640, 480);
+        final Scene scene = new Scene(root, 640, 480);
         videoStage.setScene(scene);
 
         videoStage.setOnCloseRequest(e -> mediaPlayer.stop());
@@ -1166,10 +1172,10 @@ public class ChatController {
     }
 
     // Open document with system default application
-    private void openDocument(File documentFile) {
+    private void openDocument(final File documentFile) {
         try {
             java.awt.Desktop.getDesktop().open(documentFile);
-        } catch (Exception e) {
+        } catch (final Exception e) {
             setStatus("Erreur lors de l'ouverture du document: " + e.getMessage());
         }
     }
@@ -1182,8 +1188,12 @@ public class ChatController {
 
     private void setStatus(final String status) {
         Platform.runLater(() -> {
+            if (status != null && (status.startsWith("Erreur") || status.startsWith("Échec"))) {
+                statusLabel.setStyle("-fx-text-fill: red;");
+            } else {
+                statusLabel.setStyle("");
+            }
             statusLabel.setText(status);
-            statusLabel.getStyleClass().add("status-label");
         });
     }
 
@@ -1291,9 +1301,9 @@ public class ChatController {
 
     @FXML
     private void handleSendMessage(final ActionEvent event) {
-        System.out.println("////////::selected Media File ");
         if (selectedMediaFile != null) {
-            sendMediaMessage();
+            System.out.println("Avertissement: L'envoi de média E2EE n'est pas encore implémenté.");
+            // sendMediaMessage();
             return;
         }
 
@@ -1302,122 +1312,51 @@ public class ChatController {
             return;
         }
 
-        try {
-            Message message;
-            if (selectedContactUser != null) {
+        long recipientUserId = -1;
+        long recipientGroupId = -1;
+
+        if (selectedContactUser != null) {
+            recipientUserId = selectedContactUser.getId();
+        } else if (selectedGroup != null) {
+            System.out.println("Avertissement: L'envoi de messages E2EE aux groupes n'est pas supporté. Envoi en clair.");
+            recipientGroupId = selectedGroup.getId();
+            try {
                 final User sender = userService.getUserByEmail(userEmail);
-                message = Message.newDirectMessage(sender.getId(), selectedContactUser.getId(), content);
+                final Message message = Message.newGroupMessage(sender.getId(), recipientGroupId, content);
                 chatService.sendMessage(message);
-            } else if (selectedGroup != null) {
-                final User sender = userService.getUserByEmail(userEmail);
-                message = Message.newGroupMessage(sender.getId(), selectedGroup.getId(), content);
-                chatService.sendMessage(message);
-            } else {
-                setStatus("Veuillez sélectionner un groupe ou un contact.");
-                return;
-            }
-            messageField.clear();
-            addMessageToChat(message);
-            localRepo.addLocalMessage(userEmail, message);
-            if (message.getGroupId() != null) {
+                messageField.clear();
+                addMessageToChat(message);
+                localRepo.addLocalMessage(userEmail, message);
                 groupListView.refresh();
-            } else {
-                contactListView.refresh();
+                setStatus("Message de groupe envoyé (non chiffré)");
+            } catch (final IOException e) {
+                setStatus("Erreur lors de l'envoi du message de groupe : " + e.getMessage());
             }
-            setStatus("Message envoyé");
-        } catch (final IOException e) {
-            setStatus("Erreur lors de l'envoi du message : " + e.getMessage());
+            return;
+        } else {
+            setStatus("Veuillez sélectionner un contact ou un groupe.");
+            return;
         }
-    }
 
-    /**
-     * Sends the currently selected media file as a message.
-     */
-    // Java
-    private void sendMediaMessage() {
-        try {
-            if (selectedMediaFile == null) {
-                setStatus("No media file selected.");
-                return;
-            }
-            // Auto-detect the media type if it is null
-            if (selectedMediaType == null) {
-                selectedMediaType = fileService.detectMessageType(selectedMediaFile.getName());
-                System.out.println("Auto-detected media type: " + selectedMediaType);
-            }
-            // If the type is still null after detection, abort the sending process
-            if (selectedMediaType == null) {
-                setStatus("Unsupported media type for file: " + selectedMediaFile.getName());
-                clearMediaSelection();
-                return;
-            }
+        if (recipientUserId > 0) {
+            try {
+                final Message localDisplayMessage = Message.newDirectMessage(chatService.getCurrentUserId(), recipientUserId, content);
+                addMessageToChat(localDisplayMessage);
+                localRepo.addLocalMessage(userEmail, localDisplayMessage);
 
-            Message message;
-            if (selectedContactUser != null) {
-                switch (selectedMediaType) {
-                    case IMAGE:
-                    case VIDEO:
-                    case DOCUMENT:
-                        message = chatService.createDirectMediaMessage(userEmail, selectedContactUser.getEmail(),
-                                selectedMediaFile);
-                        break;
-                    case AUDIO:
-                        message = chatService.createDirectAudioMessage(userEmail, selectedContactUser.getEmail(),
-                                selectedMediaFile);
-                        break;
-                    default:
-                        throw new IllegalStateException("Unsupported media type: " + selectedMediaType);
-                }
-            } else if (selectedGroup != null) {
-                switch (selectedMediaType) {
-                    case IMAGE:
-                    case VIDEO:
-                    case DOCUMENT:
-                        message = chatService.createGroupMediaMessage(userEmail, selectedGroup.getId(),
-                                selectedMediaFile);
-                        break;
-                    case AUDIO:
-                        message = chatService.createGroupAudioMessage(userEmail, selectedGroup.getId(),
-                                selectedMediaFile);
-                        break;
-                    default:
-                        throw new IllegalStateException("Unsupported media type: " + selectedMediaType);
-                }
-            } else {
-                setStatus("Please select a contact or group.");
-                return;
-            }
+                chatService.sendEncryptedTextMessage(recipientUserId, content);
 
-            chatService.sendMessage(message);
-
-            clearMediaSelection();
-            addMessageToChat(message);
-            localRepo.addLocalMessage(userEmail, message);
-
-            if (message.getGroupId() != null) {
-                groupListView.refresh();
-            } else {
+                messageField.clear();
                 contactListView.refresh();
-            }
+                setStatus("Message chiffré envoyé");
 
-            String mediaTypeStr = "";
-            switch (selectedMediaType) {
-                case IMAGE:
-                    mediaTypeStr = "Image";
-                    break;
-                case VIDEO:
-                    mediaTypeStr = "Video";
-                    break;
-                case AUDIO:
-                    mediaTypeStr = "Audio";
-                    break;
-                case DOCUMENT:
-                    mediaTypeStr = "Document";
-                    break;
+            } catch (final PublicKeyNotAvailableException e) {
+                setStatus("Préparation de la connexion sécurisée... Réessayez d'envoyer.");
+                System.err.println("Avertissement UI: " + e.getMessage());
+            } catch (final Exception e) {
+                setStatus("Erreur d'envoi E2EE : " + e.getMessage());
+                e.printStackTrace();
             }
-            setStatus(mediaTypeStr + " sent");
-        } catch (IOException e) {
-            setStatus("Error sending media: " + e.getMessage());
         }
     }
 
@@ -1426,9 +1365,7 @@ public class ChatController {
             try {
                 localRepo.addLocalMessage(userEmail, message);
 
-                // Message de groupe
                 if (message.getGroupId() != null) {
-                    // Vérifier si le groupe est déjà dans la liste, sinon recharger les groupes
                     final boolean groupExists = groups.stream()
                             .anyMatch(g -> g.getId() == message.getGroupId());
                     if (!groupExists) {
@@ -1437,38 +1374,37 @@ public class ChatController {
                         groupListView.refresh();
                     }
 
-                    // Afficher le message si le groupe est actuellement sélectionné
                     if (selectedGroup != null && selectedGroup.getId() == message.getGroupId()) {
                         addMessageToChat(message);
                     }
                     setStatus("Nouveau message de groupe reçu");
-                }
-                // Message direct
-                else {
+                } else {
                     final User sender = userService.getUserById(message.getSenderUserId());
 
-                    // Ajouter le contact s'il n'existe pas
                     if (sender != null && !contacts.contains(sender)) {
                         contacts.add(sender);
                     }
                     contactListView.refresh();
 
-                    // Afficher le message si la conversation est actuellement sélectionnée
                     if (selectedContactUser != null &&
                             sender.getId() == selectedContactUser.getId()) {
                         addMessageToChat(message);
                     }
 
-                    if (message.isTextMessage()) {
-                        setStatus("Nouveau message reçu");
+                    if (message.getType() == MessageType.TEXT) {
+                        setStatus("Nouveau message reçu de " + (sender != null ? sender.getDisplayNameOrEmail() : "Inconnu"));
+                    } else if (message.getType() == MessageType.SYSTEM) {
+                        setStatus("Info système: " + message.getContent());
+                    } else if (message.isMediaMessage()) {
+                        setStatus("Nouveau média reçu de " + (sender != null ? sender.getDisplayNameOrEmail() : "Inconnu"));
                     } else {
-                        setStatus("Nouveau média reçu");
+                        setStatus("Notification reçue");
                     }
                 }
 
                 scrollToBottom();
             } catch (final IOException e) {
-                setStatus("Erreur lors du traitement du message : " + e.getMessage());
+                setStatus("Erreur lors du traitement du message reçu : " + e.getMessage());
             }
         });
     }
@@ -1482,13 +1418,12 @@ public class ChatController {
             return;
         }
 
-        // Vérifier si le contact existe déjà dans la liste locale
         final boolean contactExists = contacts.stream()
                 .anyMatch(user -> user.getEmail().equalsIgnoreCase(email));
 
         if (contactExists) {
             setStatus("Ce contact existe déjà.");
-            newContactField.clear(); // Optionnel: vider le champ
+            newContactField.clear();
             return;
         }
 
@@ -1594,7 +1529,6 @@ public class ChatController {
                 return;
             }
 
-            // Vérifier que le membre n'est pas le propriétaire du groupe
             if (memberUser.getId() == selectedGroup.getOwnerUserId()) {
                 setStatus("Impossible de supprimer le propriétaire du groupe");
                 return;
@@ -1605,7 +1539,6 @@ public class ChatController {
                 setStatus("Membre supprimé avec succès");
                 memberEmailField.clear();
 
-                // Rafraîchir l'affichage des membres si le groupe est sélectionné
                 if (selectedGroup.equals(this.selectedGroup)) {
                     displayGroupMembers(selectedGroup);
                 }
@@ -1623,9 +1556,6 @@ public class ChatController {
             chatService.disconnect();
             chatHistoryContainer.getChildren().clear();
 
-            // final Stage stage = (Stage) userEmailLabel.getScene().getWindow();
-            // stage.close();
-
             final FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/login.fxml"));
             final Parent loginView = loader.load();
 
@@ -1639,22 +1569,20 @@ public class ChatController {
     }
 
     private void openMediaFileChooser(final String description, final String... extensions) {
-        FileChooser fileChooser = new FileChooser();
+        final FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Sélectionner un fichier");
         fileChooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter(description, extensions));
 
-        File selectedFile = fileChooser.showOpenDialog(mediaButton.getScene().getWindow());
+        final File selectedFile = fileChooser.showOpenDialog(mediaButton.getScene().getWindow());
         if (selectedFile != null) {
             selectedMediaFile = selectedFile;
             selectedMediaType = fileService.detectMessageType(selectedFile.getName());
 
-            // Show the attachment preview
             attachmentNameLabel.setText(selectedFile.getName());
             attachmentPreviewContainer.setManaged(true);
             attachmentPreviewContainer.setVisible(true);
 
-            // Clear the message field
             messageField.clear();
             messageField.setPromptText("Appuyez sur Envoyer pour envoyer le fichier");
         }
@@ -1684,21 +1612,17 @@ public class ChatController {
 
     private void startRecording() {
         try {
-            // Start recording
             audioRecorderService.startRecording();
             isRecording = true;
 
-            // Update UI
             audioRecordButton.setText("■");
             audioRecordButton.getStyleClass().add("recording");
             recordingIndicatorContainer.setManaged(true);
             recordingIndicatorContainer.setVisible(true);
 
-            // Disable other inputs
             messageField.setDisable(true);
             mediaButton.setDisable(true);
 
-            // Start timer
             recordingSeconds = 0;
             recordingTimeLabel.setText("00:00");
             recordingTimer = new Timer();
@@ -1707,47 +1631,41 @@ public class ChatController {
                 public void run() {
                     recordingSeconds++;
                     Platform.runLater(() -> {
-                        int minutes = recordingSeconds / 60;
-                        int seconds = recordingSeconds % 60;
+                        final int minutes = recordingSeconds / 60;
+                        final int seconds = recordingSeconds % 60;
                         recordingTimeLabel.setText(String.format("%02d:%02d", minutes, seconds));
                     });
                 }
             }, 1000, 1000);
 
             setStatus("Enregistrement audio démarré");
-        } catch (LineUnavailableException e) {
+        } catch (final LineUnavailableException e) {
             setStatus("Erreur lors du démarrage de l'enregistrement: " + e.getMessage());
         }
     }
 
     private void stopRecording() {
         try {
-            // Stop the timer
             if (recordingTimer != null) {
                 recordingTimer.cancel();
                 recordingTimer = null;
             }
 
-            // Stop recording and get the recorded file
-            File audioFile = audioRecorderService.stopRecording();
+            final File audioFile = audioRecorderService.stopRecording();
             isRecording = false;
 
-            // Update UI
             audioRecordButton.setText("🎤");
             audioRecordButton.getStyleClass().remove("recording");
             recordingIndicatorContainer.setManaged(false);
             recordingIndicatorContainer.setVisible(false);
 
-            // Re-enable inputs
             messageField.setDisable(false);
             mediaButton.setDisable(false);
 
-            // If we have a valid audio file, set it as the selected media
             if (audioFile != null && audioFile.exists()) {
                 selectedMediaFile = audioFile;
                 selectedMediaType = MessageType.AUDIO;
 
-                // Show the attachment preview
                 attachmentNameLabel.setText("Enregistrement audio (" + formatDuration(recordingSeconds) + ")");
                 attachmentPreviewContainer.setManaged(true);
                 attachmentPreviewContainer.setVisible(true);
@@ -1756,33 +1674,30 @@ public class ChatController {
             } else {
                 setStatus("L'enregistrement audio a échoué");
             }
-        } catch (IOException e) {
+        } catch (final IOException e) {
             setStatus("Erreur lors de l'arrêt de l'enregistrement: " + e.getMessage());
         }
     }
 
     private String formatDuration(int seconds) {
-        int minutes = seconds / 60;
+        final int minutes = seconds / 60;
         seconds = seconds % 60;
         return String.format("%02d:%02d", minutes, seconds);
     }
 
     @FXML
-    private void handleOpenMediaGallery(ActionEvent event) {
+    private void handleOpenMediaGallery(final ActionEvent event) {
         try {
-            // First, check if we have a selected conversation
             if (selectedContactUser == null && selectedGroup == null) {
                 setStatus("Veuillez sélectionner un contact ou un groupe pour voir la galerie média");
                 return;
             }
 
-            // Load all media messages for the current conversation
             List<Message> mediaMessages;
             String conversationName;
             boolean isGroup;
 
             if (selectedContactUser != null) {
-                // Direct conversation
                 final long myId = userService.getUserByEmail(userEmail).getId();
                 final long contactId = selectedContactUser.getId();
                 mediaMessages = localRepo.loadContactMessages(userEmail, myId, contactId)
@@ -1792,7 +1707,6 @@ public class ChatController {
                 conversationName = selectedContactUser.getDisplayNameOrEmail();
                 isGroup = false;
             } else {
-                // Group conversation
                 mediaMessages = localRepo.loadGroupMessages(userEmail, selectedGroup.getId())
                         .stream()
                         .filter(Message::isMediaMessage)
@@ -1801,29 +1715,25 @@ public class ChatController {
                 isGroup = true;
             }
 
-            // Check if there are any media messages
             if (mediaMessages.isEmpty()) {
                 setStatus("Aucun média trouvé dans cette conversation");
                 return;
             }
 
-            // Load the media gallery
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/media_gallery.fxml"));
-            Parent root = loader.load();
+            final FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/media_gallery.fxml"));
+            final Parent root = loader.load();
 
-            // Get the controller and set up the gallery
-            MediaGalleryController galleryController = loader.getController();
+            final MediaGalleryController galleryController = loader.getController();
             galleryController.setData(chatService, userService, mediaMessages, conversationName, isGroup);
 
-            // Create and show the gallery
-            Stage galleryStage = new Stage();
+            final Stage galleryStage = new Stage();
             galleryStage.setTitle("Galerie média - " + conversationName);
             galleryStage.initModality(Modality.WINDOW_MODAL);
             galleryStage.initOwner(mediaGalleryButton.getScene().getWindow());
             galleryStage.setScene(new Scene(root));
             galleryStage.show();
 
-        } catch (IOException e) {
+        } catch (final IOException e) {
             setStatus("Erreur lors de l'ouverture de la galerie média: " + e.getMessage());
         }
     }
@@ -1831,45 +1741,31 @@ public class ChatController {
     @FXML
     private void handleMediaButtonClick(final ActionEvent event) {
         try {
+            final FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/media_dialog.fxml"));
+            final Parent root = loader.load();
 
-            System.out.println("loading Media Dialog View ....");
-            // Load the media dialog
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/media_dialog.fxml"));
-            Parent root = loader.load();
-
-            System.out.println("loading Media Dialog Controller ....");
-            // Get the controller and set up the send handler
-            MediaDialogController dialogController = loader.getController();
-            System.out.println("setting up send handler ....");
-            System.out.println("we pass a function to send handler, this function takes in a file and a type");
-            System.out.println(
-                    "when the user selects a file and a type, and clicks send, this function will be called, it sets the selected media file and type in the chat controller");
-
+            final MediaDialogController dialogController = loader.getController();
             dialogController.setSendHandler((file, type) -> {
-                // When media is selected in the dialog, handle it here
                 selectedMediaFile = file;
                 selectedMediaType = type;
 
-                // Show the attachment preview
                 attachmentNameLabel.setText(file.getName());
                 attachmentPreviewContainer.setManaged(true);
                 attachmentPreviewContainer.setVisible(true);
 
-                // Clear the message field
                 messageField.clear();
                 messageField.setPromptText("Appuyez sur Envoyer pour envoyer le fichier");
-                this.sendMediaMessage();
+                // this.sendMediaMessage();
             });
 
-            // Create and show the dialog
-            Stage dialogStage = new Stage();
+            final Stage dialogStage = new Stage();
             dialogStage.setTitle("Envoyer un média");
             dialogStage.initModality(Modality.WINDOW_MODAL);
             dialogStage.initOwner(mediaButton.getScene().getWindow());
             dialogStage.setScene(new Scene(root));
             dialogStage.showAndWait();
 
-        } catch (IOException e) {
+        } catch (final IOException e) {
             setStatus("Erreur lors de l'ouverture du dialogue média: " + e.getMessage());
         }
     }
@@ -1885,9 +1781,8 @@ public class ChatController {
             } catch (final IOException e) {
                 Platform.runLater(() -> setStatus("Erreur mise à jour des statuts: " + e.getMessage()));
             }
-        }, 0, 5, TimeUnit.SECONDS); // Vérifie toutes les 5 secondes
+        }, 0, 5, TimeUnit.SECONDS);
 
-        // Arrêter le scheduler à la fermeture de la fenêtre
         Platform.runLater(() -> {
             final Stage stage = (Stage) userEmailLabel.getScene().getWindow();
             stage.setOnCloseRequest(event -> scheduler.shutdown());

@@ -74,3 +74,5 @@ ALTER TABLE messages
 
 ALTER TABLE `groups` ADD COLUMN profile_picture_url VARCHAR(255) DEFAULT '/images/default_group.png';
 ALTER TABLE messages ADD COLUMN original_message_id BIGINT;
+
+ALTER TABLE users ADD COLUMN public_key TEXT;

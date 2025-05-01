@@ -2,6 +2,7 @@ package org.example.client.gui.controllers;
 
 import java.io.IOException;
 
+import org.example.client.gui.security.KeyManager;
 import org.example.client.gui.service.ChatService;
 import org.example.shared.dto.Credentials;
 
@@ -21,29 +22,35 @@ public class LoginController {
 
     @FXML
     private TextField emailField;
-    
+
     @FXML
     private PasswordField passwordField;
-    
+
     @FXML
     private Button loginButton;
-    
-    private final ChatService chatService;
-    
-    public LoginController() {
-        this.chatService = new ChatService();
-    }
-    
+
+    private KeyManager keyManager;
+
+    private ChatService chatService;
+
     @FXML
     public void initialize() {
+        // --- AJOUT POUR E2EE ---
+        // Initialiser KeyManager en passant l'email saisi dans emailField (même s'il est initialement vide)
+        this.keyManager = new KeyManager(emailField.getText().trim());
+
+        // --- FIN AJOUT ---
+
+        // Instancier ChatService EN PASSANT KeyManager
+        this.chatService = new ChatService(this.keyManager);
         // Activer le bouton de connexion seulement si des valeurs sont entrées
         loginButton.disableProperty().bind(
-            emailField.textProperty().isEmpty().or(
-            passwordField.textProperty().isEmpty())
-        );
+                emailField.textProperty().isEmpty().or(
+                        passwordField.textProperty().isEmpty()));
     }
 
-    // this function takes in the login event from the view extracts credentials and calls connect from chat service
+    // this function takes in the login event from the view extracts credentials and
+    // calls connect from chat service
     @FXML
     private void handleLogin(final ActionEvent event) {
         // here we get credentials
@@ -59,18 +66,22 @@ public class LoginController {
                 final Credentials credentials = new Credentials(email, password);
                 // here we call connect() in chat service
                 // connect does the following :
-                    // - establishes connection with server socket (a client socket is created in server side for further communication)
-                    // - it send credentials using the output stream and waits for response the server creates a client handler and checks authenticates client
-                    // - if authenticated we run code in a thread (to load messages sent to the client offline using loadMessages() ), and we return "true".
+                // - establishes connection with server socket (a client socket is created in
+                // server side for further communication)
+                // - it send credentials using the output stream and waits for response the
+                // server creates a client handler and checks authenticates client
+                // - if authenticated we run code in a thread (to load messages sent to the
+                // client offline using loadMessages() ), and we return "true".
                 final boolean success = chatService.connect(credentials);
-                
+
                 Platform.runLater(() -> {
                     if (success) {
                         try {
                             // if authentication is successful we open the chat view
                             openChatWindow(email);
                         } catch (final IOException e) {
-                            showError("Erreur d'interface", "Impossible d'ouvrir la fenêtre de chat: " + e.getMessage());
+                            showError("Erreur d'interface",
+                                    "Impossible d'ouvrir la fenêtre de chat: " + e.getMessage());
                             rebindLoginButton();
                         }
                     } else {
@@ -86,7 +97,7 @@ public class LoginController {
             }
         }).start();
     }
-    
+
     /**
      * Rétablit le binding du bouton de login
      */
@@ -95,13 +106,13 @@ public class LoginController {
         loginButton.setDisable(false); // Réactiver le bouton
         // Rebinder le bouton avec la condition initiale
         loginButton.disableProperty().bind(
-            emailField.textProperty().isEmpty().or(
-            passwordField.textProperty().isEmpty())
-        );
+                emailField.textProperty().isEmpty().or(
+                        passwordField.textProperty().isEmpty()));
     }
 
     /**
-     * Gère le clic sur le lien "Créer un compte" pour naviguer vers la page d'inscription
+     * Gère le clic sur le lien "Créer un compte" pour naviguer vers la page
+     * d'inscription
      */
     @FXML
     private void handleRegisterLink(final ActionEvent event) {
@@ -109,11 +120,11 @@ public class LoginController {
             // Charger la vue d'inscription
             final FXMLLoader loader = new FXMLLoader(LoginController.class.getResource("/fxml/register.fxml"));
             final Parent registerView = loader.load();
-            
+
             // Créer et afficher la nouvelle scène
             final Scene registerScene = new Scene(registerView, 600, 500);
             final Stage currentStage = (Stage) loginButton.getScene().getWindow();
-            
+
             currentStage.setTitle("Inscription");
             currentStage.setScene(registerScene);
             currentStage.centerOnScreen();
@@ -122,27 +133,28 @@ public class LoginController {
         }
     }
 
-    // this function loads chat.fxml and configures it with a controller chatController
+    // this function loads chat.fxml and configures it with a controller
+    // chatController
     private void openChatWindow(final String userEmail) throws IOException {
         // Charger la vue de chat
         final FXMLLoader loader = new FXMLLoader(LoginController.class.getResource("/fxml/chat.fxml"));
         final Parent chatView = loader.load();
-        
+
         // Configurer le contrôleur de chat
         final ChatController chatController = loader.getController();
-        chatController.initData(chatService, userEmail);
-        
+        chatController.initData(chatService, userEmail, keyManager);
+
         // Créer et afficher la nouvelle scène
         final Scene chatScene = new Scene(chatView, 800, 600);
         final Stage currentStage = (Stage) loginButton.getScene().getWindow();
-        
+
         currentStage.setTitle("Chat - " + userEmail);
         currentStage.setScene(chatScene);
         currentStage.setMinWidth(800);
         currentStage.setMinHeight(600);
         currentStage.centerOnScreen();
     }
-    
+
     private void showError(final String title, final String message) {
         final Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle(title);

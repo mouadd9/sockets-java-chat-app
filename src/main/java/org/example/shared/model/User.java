@@ -19,6 +19,7 @@ public class User implements Serializable {
     private LocalDateTime lastLoginAt; // Peut être null
     private String profilePictureUrl; // URL de l'image de profil
     private String status;
+    private String publicKey; // Nouveau champ pour la clé publique
 
     // Constructeur par défaut
     public User() {
@@ -58,6 +59,8 @@ public class User implements Serializable {
     }
     public String getStatus() { return status; }
     public void setStatus(final String status) { this.status = status; }
+    public String getPublicKey() { return publicKey; }
+    public void setPublicKey(final String publicKey) { this.publicKey = publicKey; }
 
     /**
      * Retourne le nom d'affichage si disponible, sinon l'email

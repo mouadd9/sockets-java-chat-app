@@ -24,9 +24,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  */
 public class JsonLocalMessageRepository {
     // Utilisation du répertoire de projet pour stocker les données clients
-    private static final String LOCAL_FOLDER = System.getProperty("user.dir")
-            + File.separator + "src" + File.separator + "main" + File.separator + "resources" + File.separator
-            + "client_data";
+    private static final String LOCAL_FOLDER = System.getProperty("user.dir") + File.separator + "client_messages";
     private final ObjectMapper objectMapper;
 
     public JsonLocalMessageRepository() {

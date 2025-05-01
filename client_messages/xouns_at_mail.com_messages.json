@@ -1,0 +1,9 @@
+[ {
+  "id" : 0,
+  "senderUserId" : 10,
+  "receiverUserId" : 11,
+  "content" : "salam",
+  "timestamp" : [ 2025, 5, 1, 23, 25, 8, 395001000 ],
+  "status" : "SENT",
+  "type" : "TEXT"
+} ]
