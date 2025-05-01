@@ -211,18 +211,21 @@ public class MessageBroker {
         }
 
         void deliverPendingMessages() {
-            while (!messages.isEmpty()) {
-                final Message message = messages.peek();
+            int initialSize = messages.size();
+            for (int i = 0; i < initialSize; i++) {
+                Message message = messages.poll();
+                if (message == null) {
+                    break;
+                }
                 if (tryDeliver(message)) {
                     try {
-                        messages.poll();
                         messageDAO.deleteMessage(message.getId());
-                    } catch (final Exception e) {
-                        System.err.println("Delivery failed, keeping message in queue");
-                        break;
+                    } catch (Exception e) {
+                        System.err.println("Failed to delete message " + message.getId() + ", re-adding to queue");
+                        messages.offer(message);
                     }
                 } else {
-                    break;
+                    messages.offer(message);
                 }
             }
         }

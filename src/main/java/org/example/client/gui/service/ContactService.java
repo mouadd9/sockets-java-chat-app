@@ -79,8 +79,12 @@ public class ContactService {
             throw new IllegalArgumentException("Vous ne pouvez pas vous ajouter vous-même comme contact.");
         }
 
-        final Contact newContact = new Contact(user.getId(), contactUser.getId());
-        contactDAO.createContact(newContact);
+        final Contact first_Contact = new Contact(user.getId(), contactUser.getId());
+        final Contact second_Contact = new Contact(contactUser.getId(), user.getId());
+
+
+        contactDAO.createContact(first_Contact);
+        contactDAO.createContact(second_Contact);
         return true;
     }
 
