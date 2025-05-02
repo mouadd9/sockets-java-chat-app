@@ -1,0 +1,25 @@
+[ {
+  "id" : 0,
+  "senderUserId" : 2,
+  "receiverUserId" : 1,
+  "content" : "test",
+  "timestamp" : [ 2025, 5, 2, 4, 59, 53, 491113500 ],
+  "status" : "SENT",
+  "type" : "TEXT"
+}, {
+  "id" : 0,
+  "senderUserId" : 1,
+  "receiverUserId" : 2,
+  "content" : "test",
+  "timestamp" : [ 2025, 5, 2, 5, 0, 12, 242175500 ],
+  "status" : "SENT",
+  "type" : "TEXT"
+}, {
+  "id" : 0,
+  "senderUserId" : 1,
+  "receiverUserId" : 2,
+  "content" : "mouad",
+  "timestamp" : [ 2025, 5, 2, 5, 1, 32, 829504300 ],
+  "status" : "SENT",
+  "type" : "TEXT"
+} ]

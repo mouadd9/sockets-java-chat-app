@@ -1,0 +1,41 @@
+[ {
+  "id" : 0,
+  "senderUserId" : 5,
+  "receiverUserId" : 6,
+  "content" : "test",
+  "timestamp" : [ 2025, 5, 2, 5, 41, 29, 853597700 ],
+  "status" : "SENT",
+  "type" : "TEXT"
+}, {
+  "id" : 0,
+  "senderUserId" : 6,
+  "receiverUserId" : 5,
+  "content" : "test",
+  "timestamp" : [ 2025, 5, 2, 5, 41, 53, 718208500 ],
+  "status" : "SENT",
+  "type" : "TEXT"
+}, {
+  "id" : 0,
+  "senderUserId" : 5,
+  "receiverUserId" : 6,
+  "content" : "test",
+  "timestamp" : [ 2025, 5, 2, 5, 41, 59, 837235100 ],
+  "status" : "SENT",
+  "type" : "TEXT"
+}, {
+  "id" : 0,
+  "senderUserId" : 5,
+  "receiverUserId" : 6,
+  "content" : "test",
+  "timestamp" : [ 2025, 5, 2, 5, 42, 10, 86586600 ],
+  "status" : "SENT",
+  "type" : "TEXT"
+}, {
+  "id" : 0,
+  "senderUserId" : 6,
+  "receiverUserId" : 5,
+  "content" : "ljkhk",
+  "timestamp" : [ 2025, 5, 2, 5, 44, 4, 588977600 ],
+  "status" : "SENT",
+  "type" : "TEXT"
+} ]

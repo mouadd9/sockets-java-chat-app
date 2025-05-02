@@ -1,0 +1,25 @@
+[ {
+  "id" : 0,
+  "senderUserId" : 3,
+  "receiverUserId" : 2,
+  "content" : "test",
+  "timestamp" : [ 2025, 5, 2, 5, 11, 55, 969569100 ],
+  "status" : "SENT",
+  "type" : "TEXT"
+}, {
+  "id" : 0,
+  "senderUserId" : 3,
+  "receiverUserId" : 2,
+  "content" : "test",
+  "timestamp" : [ 2025, 5, 2, 5, 16, 28, 597463200 ],
+  "status" : "SENT",
+  "type" : "TEXT"
+}, {
+  "id" : 0,
+  "senderUserId" : 3,
+  "receiverUserId" : 2,
+  "content" : "test",
+  "timestamp" : [ 2025, 5, 2, 5, 16, 32, 746434300 ],
+  "status" : "SENT",
+  "type" : "TEXT"
+} ]

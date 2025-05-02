@@ -155,9 +155,7 @@ public class ChatService {
             pubKeyMsg.setSenderUserId(getCurrentUserId());
             pubKeyMsg.setType(MessageType.PUBLIC_KEY_RESPONSE); // On utilise ce type pour envoyer notre clé
             pubKeyMsg.setContent(keyManager.getUserPublicKeyString());
-
             sendMessage(pubKeyMsg); // Utiliser la méthode existante pour envoyer l'objet Message
-
             // Alternative avec commande texte simple (si ClientHandler est adapté)
             // String command = "PUB_KEY " + getCurrentUserId() + " " + keyManager.getUserPublicKeyString();
             // out.println(command);
@@ -197,9 +195,23 @@ public class ChatService {
             if (recipientPublicKey == null) {
                 System.out.println("Clé publique pour ID " + recipientUserId + " non trouvée localement. Demande au serveur...");
                 requestPublicKey(recipientUserId);
-                // Il faut attendre la réponse. Pour l'instant, on lève une exception.
-                // Une meilleure gestion impliquerait une attente asynchrone ou une mise en file d'attente du message.
-                throw new IllegalStateException("Clé publique pour l'utilisateur ID " + recipientUserId + " non disponible. Demande envoyée. Réessayez d'envoyer le message.");
+
+                // Attendre 5 secondes pour la réception de la clé
+                try {
+                    System.out.println("Attente de la clé publique...");
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+
+                // Vérifier si la clé est arrivée
+                recipientPublicKey = keyManager.getContactPublicKey(String.valueOf(recipientUserId));
+
+                if (recipientPublicKey == null) {
+                    throw new IllegalStateException("Clé publique pour l'utilisateur ID " + recipientUserId + " non disponible après attente. Veuillez réessayer plus tard.");
+                }
+
+                System.out.println("Clé publique reçue avec succès.");
             }
 
             // 2. On a la clé publique, générer et envoyer la clé de session
@@ -227,7 +239,7 @@ public class ChatService {
             System.out.println("Message d'initialisation de session envoyé à ID " + recipientUserId);
 
         } else {
-             System.out.println("Clé de session existante pour ID " + recipientUserId);
+            System.out.println("Clé de session existante pour ID " + recipientUserId);
         }
     }
 
